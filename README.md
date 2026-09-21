@@ -1,4 +1,4 @@
-# ![LittleAlchemy-OnlineCoop icon](https://raw.githubusercontent.com/Der-Floh/LittleAlchemy-OnlineCoop/main/Assets/icon-x64.png) Little Alchemy Co-op
+# ![LittleAlchemy-OnlineCoop icon](https://raw.githubusercontent.com/Der-Floh/LittleAlchemy-OnlineCoop/main/assets/icon-x64.png) Little Alchemy Co-op
 
 [![Chrome users](https://img.shields.io/chrome-web-store/users/mmkohnifjldajadihckfeknpmgaciibo?label=chrome%20users&color=4285f4&logo=google-chrome)](https://chromewebstore.google.com/detail/mmkohnifjldajadihckfeknpmgaciibo)
 [![Firefox users](https://img.shields.io/amo/users/little-alchemy-co-op?label=firefox%20users&color=ff7139&logo=firefox-browser)](https://addons.mozilla.org/firefox/addon/little-alchemy-co-op/)
