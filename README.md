@@ -195,6 +195,12 @@ canvas tests run another build, e.g. the previous release, to check that the two
 versions can share a room. `node scripts/ui-preview.ts <dir>` saves screenshots
 of the UI.
 
+On GitHub, every push and pull request runs `.github/workflows/ci.yml` (the
+shared extension-ci workflow): `npm run check`, plus a build that Mozilla's
+add-on linter checks and that is kept as a zip among the run's artifacts. The
+integration and end-to-end tests only run locally, since they need a real Chrome
+and the live game.
+
 ### Releasing
 
 Publishing a GitHub release runs `.github/workflows/publish.yml`, which uses the
