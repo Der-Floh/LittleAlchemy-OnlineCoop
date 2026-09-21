@@ -1,21 +1,21 @@
 name: CI
 
 on:
-  push:
-    branches: ['**']
-  pull_request:
+    push:
+        branches: ['**']
+    pull_request:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
 
 permissions:
-  contents: read
+    contents: read
 
 jobs:
-  ci:
-    uses: Der-Floh/Der-Floh/.github/workflows/extension-ci.yml@v1
-    with:
-      extension-dir: extension
-      package-name: little-alchemy-coop
-      check-command: npm run check
+    ci:
+        uses: Der-Floh/Der-Floh/.github/workflows/extension-ci.yml@v1
+        with:
+            extension-dir: extension
+            package-name: little-alchemy-coop
+            check-command: npm run check

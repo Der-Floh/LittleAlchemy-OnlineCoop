@@ -30,33 +30,33 @@ export type RejectReason = (typeof REJECT_REASONS)[number];
 const randomRoomCode = customAlphabet(ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH);
 
 export function makeRoomCode(): string {
-  return randomRoomCode();
+    return randomRoomCode();
 }
 
 // Accepts user input like " k7m-4px " and returns "K7M4PX", or null if invalid.
 export function normalizeRoomCode(input: unknown): string | null {
-  if (typeof input !== 'string') return null;
-  const code = input.toUpperCase().replace(/[\s-]/g, '');
-  if (code.length !== ROOM_CODE_LENGTH) return null;
-  for (const ch of code) if (!ROOM_CODE_ALPHABET.includes(ch)) return null;
-  return code;
+    if (typeof input !== 'string') return null;
+    const code = input.toUpperCase().replace(/[\s-]/g, '');
+    if (code.length !== ROOM_CODE_LENGTH) return null;
+    for (const ch of code) if (!ROOM_CODE_ALPHABET.includes(ch)) return null;
+    return code;
 }
 
 export function hostPeerId(code: string): string {
-  return HOST_ID_PREFIX + code;
+    return HOST_ID_PREFIX + code;
 }
 
 // Player names are shown to other players, so strip control characters and
 // cap the length. Returns null when nothing usable is left.
 export function sanitizeName(raw: unknown): string | null {
-  if (typeof raw !== 'string') return null;
-  const cleaned = raw
-    .replace(/\s+/g, ' ')
-    .replace(/[\p{C}]/gu, '')
-    .replace(/ {2,}/g, ' ')
-    .trim();
-  if (!cleaned) return null;
-  return Array.from(cleaned).slice(0, MAX_NAME_LENGTH).join('');
+    if (typeof raw !== 'string') return null;
+    const cleaned = raw
+        .replace(/\s+/g, ' ')
+        .replace(/[\p{C}]/gu, '')
+        .replace(/ {2,}/g, ' ')
+        .trim();
+    if (!cleaned) return null;
+    return Array.from(cleaned).slice(0, MAX_NAME_LENGTH).join('');
 }
 
 // ---- schemas ----------------------------------------------------------------------
@@ -69,31 +69,31 @@ const Name = v.pipe(v.unknown(), v.transform(sanitizeName), v.string());
 const Flag = v.fallback(v.boolean(), false);
 const ColorIndex = v.fallback(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(PLAYER_COLOR_COUNT - 1)), 0);
 const Pairs = v.fallback(
-  v.pipe(
-    v.unknown(),
-    v.transform((raw) => parseTuples(raw, MAX_PAIRS_PER_MESSAGE)),
-  ),
-  () => [],
+    v.pipe(
+        v.unknown(),
+        v.transform((raw) => parseTuples(raw, MAX_PAIRS_PER_MESSAGE)),
+    ),
+    () => [],
 );
 
 // A list where bad entries are skipped instead of failing the message. Only
 // the first `max` entries are looked at.
 function lenientList<TSchema extends v.GenericSchema>(schema: TSchema, max: number) {
-  return v.fallback(
-    v.pipe(
-      v.unknown(),
-      v.transform((raw) => {
-        const out: v.InferOutput<TSchema>[] = [];
-        if (!Array.isArray(raw)) return out;
-        for (const item of (raw as readonly unknown[]).slice(0, max)) {
-          const result = v.safeParse(schema, item);
-          if (result.success) out.push(result.output);
-        }
-        return out;
-      }),
-    ),
-    () => [],
-  );
+    return v.fallback(
+        v.pipe(
+            v.unknown(),
+            v.transform((raw) => {
+                const out: v.InferOutput<TSchema>[] = [];
+                if (!Array.isArray(raw)) return out;
+                for (const item of (raw as readonly unknown[]).slice(0, max)) {
+                    const result = v.safeParse(schema, item);
+                    if (result.success) out.push(result.output);
+                }
+                return out;
+            }),
+        ),
+        () => [],
+    );
 }
 
 const PlayerSchema = v.object({ id: PlayerId, name: v.fallback(Name, 'Player') });
@@ -108,60 +108,60 @@ const IdList = v.pipe(lenientList(PlayerId, MAX_ROOM_IDS), v.transform(uniq));
 // Room-wide settings the host enforces; every member keeps a copy so that a
 // new host (after a migration or handover) keeps enforcing them.
 const RoomFlagsSchema = v.fallback(v.object({ locked: Flag, banned: IdList, allowed: IdList }), () => ({
-  locked: false,
-  banned: [],
-  allowed: [],
+    locked: false,
+    banned: [],
+    allowed: [],
 }));
 export type RoomFlags = v.InferOutput<typeof RoomFlagsSchema>;
 
 export function emptyRoomFlags(): RoomFlags {
-  return { locked: false, banned: [], allowed: [] };
+    return { locked: false, banned: [], allowed: [] };
 }
 
 const Version = v.pipe(v.number(), v.integer());
 
 const MessageSchema = v.variant('t', [
-  v.object({
-    t: v.literal('hello'),
-    v: Version,
-    build: v.fallback(v.nullable(shortString(16)), null),
-    player: PlayerSchema,
-    pairs: Pairs,
-  }),
-  v.object({
-    t: v.literal('welcome'),
-    v: Version,
-    you: v.fallback(v.object({ color: ColorIndex }), () => ({ color: 0 })),
-    members: Members,
-    room: RoomFlagsSchema,
-    pairs: Pairs,
-  }),
-  v.object({
-    t: v.literal('reject'),
-    reason: v.fallback(v.picklist([...REJECT_REASONS, 'unknown']), 'unknown'),
-    detail: v.fallback(
-      v.pipe(
-        v.string(),
-        v.transform((s) => s.slice(0, 200)),
-      ),
-      '',
-    ),
-  }),
-  v.object({ t: v.literal('add'), by: PlayerSchema, pairs: Pairs, sync: Flag }),
-  v.object({ t: v.literal('presence'), members: Members, room: RoomFlagsSchema }),
-  // Feature messages (workspace, cursors). The payload is validated by the
-  // feature that handles it; here only the envelope is checked.
-  v.object({
-    t: v.literal('app'),
-    k: v.pipe(v.string(), v.regex(/^[a-z]{1,12}$/)),
-    d: v.custom<object>((d) => typeof d === 'object' && d !== null),
-    by: v.fallback(v.nullable(PlayerId), null),
-  }),
-  v.object({ t: v.literal('handover'), to: PlayerId }),
-  v.object({ t: v.literal('rename'), name: Name }),
-  v.object({ t: v.literal('leave') }),
-  v.object({ t: v.literal('ping') }),
-  v.object({ t: v.literal('rehome') }),
+    v.object({
+        t: v.literal('hello'),
+        v: Version,
+        build: v.fallback(v.nullable(shortString(16)), null),
+        player: PlayerSchema,
+        pairs: Pairs,
+    }),
+    v.object({
+        t: v.literal('welcome'),
+        v: Version,
+        you: v.fallback(v.object({ color: ColorIndex }), () => ({ color: 0 })),
+        members: Members,
+        room: RoomFlagsSchema,
+        pairs: Pairs,
+    }),
+    v.object({
+        t: v.literal('reject'),
+        reason: v.fallback(v.picklist([...REJECT_REASONS, 'unknown']), 'unknown'),
+        detail: v.fallback(
+            v.pipe(
+                v.string(),
+                v.transform((s) => s.slice(0, 200)),
+            ),
+            '',
+        ),
+    }),
+    v.object({ t: v.literal('add'), by: PlayerSchema, pairs: Pairs, sync: Flag }),
+    v.object({ t: v.literal('presence'), members: Members, room: RoomFlagsSchema }),
+    // Feature messages (workspace, cursors). The payload is validated by the
+    // feature that handles it; here only the envelope is checked.
+    v.object({
+        t: v.literal('app'),
+        k: v.pipe(v.string(), v.regex(/^[a-z]{1,12}$/)),
+        d: v.custom<object>((d) => typeof d === 'object' && d !== null),
+        by: v.fallback(v.nullable(PlayerId), null),
+    }),
+    v.object({ t: v.literal('handover'), to: PlayerId }),
+    v.object({ t: v.literal('rename'), name: Name }),
+    v.object({ t: v.literal('leave') }),
+    v.object({ t: v.literal('ping') }),
+    v.object({ t: v.literal('rehome') }),
 ]);
 
 type KnownMessage = v.InferOutput<typeof MessageSchema>;
@@ -173,29 +173,29 @@ const KNOWN_TYPES: ReadonlySet<string> = new Set(MessageSchema.options.map((opti
 
 // What we send. The same shapes, a few fields optional.
 export type Outgoing =
-  | MessageOf<'hello' | 'welcome' | 'presence' | 'handover' | 'rename' | 'leave' | 'ping' | 'rehome'>
-  | { t: 'reject'; reason: RejectReason; detail: string }
-  | { t: 'add'; by: Player; pairs: Tuple[]; sync?: boolean }
-  | { t: 'app'; k: string; d: object; by?: string };
+    | MessageOf<'hello' | 'welcome' | 'presence' | 'handover' | 'rename' | 'leave' | 'ping' | 'rehome'>
+    | { t: 'reject'; reason: RejectReason; detail: string }
+    | { t: 'add'; by: Player; pairs: Tuple[]; sync?: boolean }
+    | { t: 'app'; k: string; d: object; by?: string };
 
 export function encode(msg: Outgoing): string {
-  return JSON.stringify(msg);
+    return JSON.stringify(msg);
 }
 
 export type Decoded = { msg: Message; error?: undefined } | { msg?: undefined; error: string };
 
 // Returns {msg} with a normalized message, or {error} describing why it was dropped.
 export function decode(raw: unknown): Decoded {
-  if (typeof raw !== 'string') return { error: 'not-a-string' };
-  if (raw.length > MAX_MESSAGE_CHARS) return { error: 'too-large' };
-  let data: unknown;
-  try {
-    data = JSON.parse(raw);
-  } catch {
-    return { error: 'bad-json' };
-  }
-  if (!data || typeof data !== 'object' || !('t' in data) || typeof data.t !== 'string') return { error: 'no-type' };
-  if (!KNOWN_TYPES.has(data.t)) return { msg: { t: 'unknown', type: data.t.slice(0, 32) } };
-  const result = v.safeParse(MessageSchema, data);
-  return result.success ? { msg: result.output } : { error: 'bad-' + data.t };
+    if (typeof raw !== 'string') return { error: 'not-a-string' };
+    if (raw.length > MAX_MESSAGE_CHARS) return { error: 'too-large' };
+    let data: unknown;
+    try {
+        data = JSON.parse(raw);
+    } catch {
+        return { error: 'bad-json' };
+    }
+    if (!data || typeof data !== 'object' || !('t' in data) || typeof data.t !== 'string') return { error: 'no-type' };
+    if (!KNOWN_TYPES.has(data.t)) return { msg: { t: 'unknown', type: data.t.slice(0, 32) } };
+    const result = v.safeParse(MessageSchema, data);
+    return result.success ? { msg: result.output } : { error: 'bad-' + data.t };
 }

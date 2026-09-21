@@ -10,19 +10,19 @@ import type { CoopPanel } from './ui/panel.tsx';
 import type { Settings } from './store.ts';
 
 export type CoopDebug = {
-  version: string;
-  session: RoomSession;
-  adapter: GameAdapter;
-  settings: Settings;
-  panel: CoopPanel;
-  bridge: WorkspaceBridge;
-  sync: WorkspaceSync;
-  cursors: Cursors;
+    version: string;
+    session: RoomSession;
+    adapter: GameAdapter;
+    settings: Settings;
+    panel: CoopPanel;
+    bridge: WorkspaceBridge;
+    sync: WorkspaceSync;
+    cursors: Cursors;
 };
 
 declare global {
-  interface Window {
-    __laCoop?: CoopDebug;
-    __laCoopStarted?: boolean;
-  }
+    interface Window {
+        __laCoop?: CoopDebug;
+        __laCoopStarted?: boolean;
+    }
 }

@@ -7,25 +7,25 @@ export type PeerErrorLike = { type?: string } | null | undefined;
 export type ConnectOptions = { reliable?: boolean; serialization?: string; metadata?: unknown };
 
 export interface ConnLike {
-  readonly open: boolean;
-  readonly peerConnection?: RTCPeerConnection | null;
-  on(event: 'open' | 'close', fn: () => void): unknown;
-  on(event: 'data', fn: (data: unknown) => void): unknown;
-  on(event: 'error', fn: (err: unknown) => void): unknown;
-  send(data: string): unknown;
-  close(): void;
+    readonly open: boolean;
+    readonly peerConnection?: RTCPeerConnection | null;
+    on(event: 'open' | 'close', fn: () => void): unknown;
+    on(event: 'data', fn: (data: unknown) => void): unknown;
+    on(event: 'error', fn: (err: unknown) => void): unknown;
+    send(data: string): unknown;
+    close(): void;
 }
 
 export interface PeerLike {
-  readonly disconnected: boolean;
-  readonly destroyed: boolean;
-  on(event: 'open', fn: (id: string) => void): unknown;
-  on(event: 'connection', fn: (conn: ConnLike) => void): unknown;
-  on(event: 'disconnected', fn: () => void): unknown;
-  on(event: 'error', fn: (err: PeerErrorLike) => void): unknown;
-  connect(id: string, options: ConnectOptions): ConnLike;
-  reconnect(): void;
-  destroy(): void;
+    readonly disconnected: boolean;
+    readonly destroyed: boolean;
+    on(event: 'open', fn: (id: string) => void): unknown;
+    on(event: 'connection', fn: (conn: ConnLike) => void): unknown;
+    on(event: 'disconnected', fn: () => void): unknown;
+    on(event: 'error', fn: (err: PeerErrorLike) => void): unknown;
+    connect(id: string, options: ConnectOptions): ConnLike;
+    reconnect(): void;
+    destroy(): void;
 }
 
 // Creates a peer on the broker: with an id to claim it (hosting), or

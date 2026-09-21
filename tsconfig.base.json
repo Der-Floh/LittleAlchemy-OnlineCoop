@@ -1,22 +1,22 @@
 {
-  // Shared compiler settings. Nothing is emitted: esbuild bundles src/, and
-  // Node runs tests and scripts directly (it strips the types), which is why
-  // imports use .ts extensions and only erasable TypeScript syntax is allowed.
-  "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitOverride": true,
-    "noFallthroughCasesInSwitch": true,
-    "verbatimModuleSyntax": true,
-    "erasableSyntaxOnly": true,
-    "allowImportingTsExtensions": true,
-    "isolatedModules": true,
-    "noEmit": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "jsx": "react-jsx",
-    "jsxImportSource": "preact"
-  }
+    // Shared compiler settings. Nothing is emitted: esbuild bundles src/, and
+    // Node runs tests and scripts directly (it strips the types), which is why
+    // imports use .ts extensions and only erasable TypeScript syntax is allowed.
+    "compilerOptions": {
+        "target": "ES2022",
+        "lib": ["ES2023", "DOM", "DOM.Iterable"],
+        "strict": true,
+        "noUncheckedIndexedAccess": true,
+        "noImplicitOverride": true,
+        "noFallthroughCasesInSwitch": true,
+        "verbatimModuleSyntax": true,
+        "erasableSyntaxOnly": true,
+        "allowImportingTsExtensions": true,
+        "isolatedModules": true,
+        "noEmit": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "jsx": "react-jsx",
+        "jsxImportSource": "preact"
+    }
 }

@@ -86,13 +86,13 @@ extension's card.
   click **Load Temporary Add-on…** and pick the zip (or `extension/manifest.json`).
 - **Permanent install:** Firefox only installs signed add-ons. Signing is free
   and automatic for self-distributed ("unlisted") add-ons:
-  1. Create a Mozilla account and get API credentials at
-     <https://addons.mozilla.org/developers/addon/api/key/>.
-  2. Run:
-     ```bash
-     npx web-ext sign --source-dir extension --channel unlisted --artifacts-dir dist-packages --api-key YOUR_JWT_ISSUER --api-secret YOUR_JWT_SECRET
-     ```
-  3. Share the resulting `.xpi`; opening it in Firefox installs it.
+    1. Create a Mozilla account and get API credentials at
+       <https://addons.mozilla.org/developers/addon/api/key/>.
+    2. Run:
+       ```bash
+       npx web-ext sign --source-dir extension --channel unlisted --artifacts-dir dist-packages --api-key YOUR_JWT_ISSUER --api-secret YOUR_JWT_SECRET
+       ```
+    3. Share the resulting `.xpi`; opening it in Firefox installs it.
 
   Mozilla may ask for the source code of the bundled script: that's this
   repository (`npm ci && npm run build` reproduces `extension/dist/coop.js`).

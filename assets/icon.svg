@@ -1,12 +1,12 @@
 <svg width="24" height="24" version="1.1" viewBox="0 0 6.35 6.35" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
- <defs>
-  <linearGradient id="a" x1="5.4201" x2=".92994" y1=".92994" y2="5.4201" gradientUnits="userSpaceOnUse">
-   <stop stop-color="#c226a2" offset=".3087"/>
-   <stop stop-color="#75005d" offset="1"/>
-  </linearGradient>
- </defs>
- <rect width="6.35" height="6.35" ry="1.5031" fill="url(#a)" style="paint-order:stroke fill markers"/>
- <ellipse transform="matrix(.9345 0 0 .9345 .20797 .20797)" cx="3.175" cy="3.175" rx=".75815" ry="1.3806" fill="#fff" fill-opacity=".5" style="paint-order:stroke fill markers"/>
- <circle transform="matrix(.04657 0 0 .04657 -.29522 -3.5984)" cx="56.9" cy="145.45" r="32.83" fill="none" stroke="#fff" stroke-linejoin="round" stroke-width="7.433" style="paint-order:stroke fill markers"/>
- <circle transform="matrix(.04657 0 0 .04657 -.29522 -3.5984)" cx="92.133" cy="145.45" r="32.83" fill="none" stroke="#fff" stroke-linejoin="round" stroke-width="7.433" style="paint-order:stroke fill markers"/>
+    <defs>
+        <linearGradient id="a" x1="5.4201" x2=".92994" y1=".92994" y2="5.4201" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#c226a2" offset=".3087"/>
+            <stop stop-color="#75005d" offset="1"/>
+        </linearGradient>
+    </defs>
+    <rect width="6.35" height="6.35" ry="1.5031" fill="url(#a)" style="paint-order:stroke fill markers"/>
+    <ellipse transform="matrix(.9345 0 0 .9345 .20797 .20797)" cx="3.175" cy="3.175" rx=".75815" ry="1.3806" fill="#fff" fill-opacity=".5" style="paint-order:stroke fill markers"/>
+    <circle transform="matrix(.04657 0 0 .04657 -.29522 -3.5984)" cx="56.9" cy="145.45" r="32.83" fill="none" stroke="#fff" stroke-linejoin="round" stroke-width="7.433" style="paint-order:stroke fill markers"/>
+    <circle transform="matrix(.04657 0 0 .04657 -.29522 -3.5984)" cx="92.133" cy="145.45" r="32.83" fill="none" stroke="#fff" stroke-linejoin="round" stroke-width="7.433" style="paint-order:stroke fill markers"/>
 </svg>

@@ -77,8 +77,8 @@ There is one content script, bundled by esbuild (IIFE, unminified). It runs in t
 - **A local discovery:** `GameAdapter` fires `local` → `main.ts` → `RoomSession.broadcastLocal()`.
 - **A remote discovery:** `RoomSession` → `GameAdapter.applyTuples()` → `applied` event → `main.ts` → feed and toasts in `CoopPanel`.
 - **Canvas and cursors** travel as the session's app messages:
-  - `WorkspaceSync` ⇄ `WorkspaceBridge` (the game canvas);
-  - `Cursors` → `CoopPanel.setCursors()`.
+    - `WorkspaceSync` ⇄ `WorkspaceBridge` (the game canvas);
+    - `Cursors` → `CoopPanel.setCursors()`.
 
 ### The replicated state
 
@@ -94,8 +94,8 @@ The game keeps its save as a list of recipe pairs (`game.history.parents`) and r
 
 - **Local discoveries:** it hears them through the game's jQuery `updateHistory` event.
 - **Remote discoveries** are applied through the game's own code paths, so the library, counter, save and achievements update natively:
-  - Up to 30 pairs: triggering the game's `childCreated` event.
-  - Bigger syncs: the game's own rebuild functions, deferred while the player holds the mouse button down.
+    - Up to 30 pairs: triggering the game's `childCreated` event.
+    - Bigger syncs: the game's own rebuild functions, deferred while the player holds the mouse button down.
 - **Backup:** it keeps a one-time backup of the save from before the first co-op merge.
 - **Game globals** are typed in `src/game/globals.d.ts`. `whenReady()` is the runtime check, and it reports unsupported game builds.
 
@@ -143,23 +143,23 @@ Features use "app" messages instead of new protocol messages:
 It is split so the rules are testable without a browser:
 
 - **`workspace/ops.ts`:** op tuples `a`/`d`/`m`/`h`/`r` (add, delete, move, hold, release).
-  - Positions are the element's centre, relative to the playable area (0..1).
-  - `projection.ts` maps these positions to and from each screen.
+    - Positions are the element's centre, relative to the playable area (0..1).
+    - `projection.ts` maps these positions to and from each screen.
 - **`workspace/state.ts`:** the canvas as data.
-  - The host applies batches all-or-nothing. It refuses touching an element someone else holds, or using an element that is already gone.
-  - Clients apply the host's relayed batches leniently.
-  - `hash()` is an FNV-1a fingerprint.
+    - The host applies batches all-or-nothing. It refuses touching an element someone else holds, or using an element that is already gone.
+    - Clients apply the host's relayed batches leniently.
+    - `hash()` is an FNV-1a fingerprint.
 - **`workspace/sync.ts`:**
-  - The host referees and relays.
-  - Clients apply their own batches at once, then rebuild from a snapshot plus their unacknowledged batches.
-  - A joining player's canvas is replaced by the room's.
-  - Idle clients send a fingerprint every 30 s; two mismatches in a row get a fresh snapshot.
-  - App kinds: `ws` (batch), `wsnap` (snapshot), `wshash` (fingerprint).
+    - The host referees and relays.
+    - Clients apply their own batches at once, then rebuild from a snapshot plus their unacknowledged batches.
+    - A joining player's canvas is replaced by the room's.
+    - Idle clients send a fingerprint every 30 s; two mismatches in a row get a fresh snapshot.
+    - App kinds: `ws` (batch), `wsnap` (snapshot), `wshash` (fingerprint).
 - **`game/workspace-bridge.ts`:** the only code touching the game's canvas. The header comment explains each hook:
-  - wraps `WorkspaceBox.prototype.initEvents`;
-  - watches removals with a MutationObserver;
-  - follows drags through jQuery drag events;
-  - patches `Droppable` position caches and `_accept`.
+    - wraps `WorkspaceBox.prototype.initEvents`;
+    - watches removals with a MutationObserver;
+    - follows drags through jQuery drag events;
+    - patches `Droppable` position caches and `_accept`.
 
 ### Cursors and UI
 
@@ -182,16 +182,16 @@ It is split so the rules are testable without a browser:
 ### Protocol, data and game coupling
 
 - **Keep the wire protocol compatible.** Versions 0.2 and later must be able to share a room.
-  - Don't change existing message shapes, app kinds, the op format or the `state.hash()` fingerprint incompatibly.
-  - Add optional fields or new message/app kinds instead; older peers ignore the unknown ones.
-  - A breaking change needs a `PROTOCOL_VERSION` bump, which splits rooms by version.
-  - Verify compatibility with `EXTENSION_DIR_B`.
+    - Don't change existing message shapes, app kinds, the op format or the `state.hash()` fingerprint incompatibly.
+    - Add optional fields or new message/app kinds instead; older peers ignore the unknown ones.
+    - A breaking change needs a `PROTOCOL_VERSION` bump, which splits rooms by version.
+    - Verify compatibility with `EXTENSION_DIR_B`.
 - **Treat data from peers and from storage as untrusted.** Parse it through the valibot schemas in `protocol.ts`, `ops.ts`, `cursors.ts` and `store.ts`. Types come from the schemas (`v.InferOutput`); don't duplicate them as hand-written interfaces.
 - **Keep game coupling in two files:** `adapter.ts` (game state) and `workspace-bridge.ts` (canvas). Anything newly used from the game goes into `globals.d.ts` and gets a runtime check.
 - **Keep the README's promises true.**
-  - README's *Privacy* section lists exactly what goes over the wire. Keep it accurate when adding data to messages.
-  - The manifest declares no data collection to Firefox (`data_collection_permissions: none`).
-  - The extension stays labelled an unofficial fan project and never bundles the game's code or assets.
+    - README's *Privacy* section lists exactly what goes over the wire. Keep it accurate when adding data to messages.
+    - The manifest declares no data collection to Firefox (`data_collection_permissions: none`).
+    - The extension stays labelled an unofficial fan project and never bundles the game's code or assets.
 
 ### UI
 
@@ -201,10 +201,11 @@ It is split so the rules are testable without a browser:
 ### Dependencies and tooling
 
 - **Prefer packages over own code**, as long as they run in the browser: no Node-only dependencies and no `eval`.
-  - Runtime dependencies: peerjs, preact, @preact/signals, valibot, nanoid, es-toolkit.
-  - Deliberately kept as own code, because it's specific to this game and protocol: the Emitter, session state machine, canvas referee, op batching, FNV hash, tab guard, rate limiters and projection maths.
+    - Runtime dependencies: peerjs, preact, @preact/signals, valibot, nanoid, es-toolkit.
+    - Deliberately kept as own code, because it's specific to this game and protocol: the Emitter, session state machine, canvas referee, op batching, FNV hash, tab guard, rate limiters and projection maths.
 - **No React.** Preact + signals was chosen on purpose.
 - **Linting is ESLint only** (typescript-eslint, type-aware); no Prettier.
+- **Formatting:** LF line endings and 4-space indentation in every file, code and configs alike (`.editorconfig`, `.gitattributes`).
 - **The build stays esbuild + web-ext**, not a framework like WXT.
 
 ### TypeScript
@@ -212,8 +213,8 @@ It is split so the rules are testable without a browser:
 - Strict mode; relative imports carry the `.ts`/`.tsx` extension.
 - Only erasable syntax (no enums, namespaces or parameter properties), because Node strips the types.
 - There are two projects:
-  - `src/tsconfig.json`: browser code; DOM + jQuery types, no Node types.
-  - `tsconfig.json`: tests, scripts and config files, run by Node.
+    - `src/tsconfig.json`: browser code; DOM + jQuery types, no Node types.
+    - `tsconfig.json`: tests, scripts and config files, run by Node.
 - TypeScript is pinned to `~6.0` because typescript-eslint doesn't support TypeScript 7 yet. Don't bump it until it does.
 
 ### Build output
@@ -224,8 +225,8 @@ It is split so the rules are testable without a browser:
 ### Tests
 
 - **Unit tests** use `test/unit/fakes.ts`:
-  - `FakeNetwork`, `FakePeer` and `FakeConn`, which mimic the PeerJS broker (`unavailable-id`, `peer-unavailable`, broker disconnects);
-  - `FakeGame`, `FAST_TIMING` and `waitFor`.
+    - `FakeNetwork`, `FakePeer` and `FakeConn`, which mimic the PeerJS broker (`unavailable-id`, `peer-unavailable`, broker disconnects);
+    - `FakeGame`, `FAST_TIMING` and `waitFor`.
 - **Behaviour that needs the real game** goes in `test/integration` (one player). Only use `test/e2e` when players must actually connect; those tests are slow and depend on the live site and broker.
 
 ### Git

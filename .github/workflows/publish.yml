@@ -1,30 +1,30 @@
 name: Publish Release
 
 on:
-  release:
-    types: [published]
+    release:
+        types: [published]
 
 concurrency:
-  group: extension-publish
-  cancel-in-progress: false
+    group: extension-publish
+    cancel-in-progress: false
 
 permissions:
-  contents: write
-  id-token: write
-  attestations: write
+    contents: write
+    id-token: write
+    attestations: write
 
 jobs:
-  publish:
-    uses: Der-Floh/Der-Floh/.github/workflows/extension-publish.yml@v1
-    with:
-      extension-dir: extension
-      package-name: little-alchemy-coop
-      chrome-extension-id: ${{ vars.CHROME_EXTENSION_ID }}
-      chrome-publisher-id: ${{ vars.CHROME_PUBLISHER_ID }}
-      firefox-addon-id: ${{ vars.FIREFOX_ADDON_ID }}
-    secrets:
-      CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
-      CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
-      CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
-      AMO_API_KEY: ${{ secrets.AMO_API_KEY }}
-      AMO_API_SECRET: ${{ secrets.AMO_API_SECRET }}
+    publish:
+        uses: Der-Floh/Der-Floh/.github/workflows/extension-publish.yml@v1
+        with:
+            extension-dir: extension
+            package-name: little-alchemy-coop
+            chrome-extension-id: ${{ vars.CHROME_EXTENSION_ID }}
+            chrome-publisher-id: ${{ vars.CHROME_PUBLISHER_ID }}
+            firefox-addon-id: ${{ vars.FIREFOX_ADDON_ID }}
+        secrets:
+            CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+            CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+            CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+            AMO_API_KEY: ${{ secrets.AMO_API_KEY }}
+            AMO_API_SECRET: ${{ secrets.AMO_API_SECRET }}
