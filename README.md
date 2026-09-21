@@ -195,6 +195,33 @@ canvas tests run another build, e.g. the previous release, to check that the two
 versions can share a room. `node scripts/ui-preview.ts <dir>` saves screenshots
 of the UI.
 
+### Releasing
+
+Publishing a GitHub release runs `.github/workflows/publish.yml`, which uses the
+shared [extension-publish](https://github.com/Der-Floh/Der-Floh/blob/main/.github/CI.md#consuming-a-browser-extension)
+workflow:
+
+1. Set the new version with `npm version 0.3.1 --no-git-tag-version`, run
+   `npm run build` (it copies the version into the manifest), and commit.
+2. Publish a release tagged `v0.3.1`. The run stops if the tag and the version
+   differ.
+3. The workflow builds and lints the extension, attaches
+   `little-alchemy-coop-<version>.zip` to the release, and submits it to the
+   Chrome Web Store and to Firefox Add-ons (with the source code, which Mozilla's
+   reviewers rebuild with `npm ci && npm run build`). A pre-release only gets
+   the zip.
+
+The stores only take new versions of an extension they already have: upload the
+first version by hand (the zip from the release), then switch each store on in
+the repository settings:
+
+| Store | Variables | Secrets |
+| --- | --- | --- |
+| Chrome Web Store | `CHROME_EXTENSION_ID` (the item id), `CHROME_PUBLISHER_ID` | `CHROME_CLIENT_ID`, `CHROME_CLIENT_SECRET`, `CHROME_REFRESH_TOKEN` |
+| Firefox Add-ons | `FIREFOX_ADDON_ID` = `little-alchemy-coop@fan-project` | `AMO_API_KEY`, `AMO_API_SECRET` |
+
+The shared workflow's documentation explains where each value comes from.
+
 ### How it works
 
 Little Alchemy classic (build 580) keeps its save as a list of recipe pairs
@@ -223,5 +250,5 @@ The extension injects one script into the page (`world: "MAIN"`):
 - Chat or quick reactions, and "suggest an element" to the room.
 - A background-tab alert, recent rooms, a translated co-op panel.
 - A versus mode, and an optional separate co-op save.
-- Publishing to the Chrome Web Store / Firefox Add-ons; a self-hosted PeerServer/TURN as the default.
+- A self-hosted PeerServer/TURN as the default.
 - TypeScript 7 (the native compiler), once typescript-eslint supports it; the project is on TypeScript 6 until then.
