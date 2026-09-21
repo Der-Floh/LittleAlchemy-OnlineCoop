@@ -5,8 +5,9 @@
 // Backspace blocking, disabled context menu) don't interfere with typing.
 
 import css from './styles.css';
+import { colorFor } from './colors.js';
 
-export const PLAYER_COLORS = ['#a8328f', '#1c7ed6', '#2b9348', '#e8590c', '#7048e8', '#0c8599', '#d6336c', '#846358'];
+export { PLAYER_COLORS, colorFor } from './colors.js';
 
 const DETAIL_TEXT = {
   broker: "can't reach the matchmaking server",
@@ -17,6 +18,7 @@ const DETAIL_TEXT = {
   rtc: 'connection dropped',
   'host-left': 'the host left, switching host',
   rehome: 'switching host',
+  handover: 'handing over the host',
 };
 
 const REJECT_TEXT = {
@@ -24,6 +26,8 @@ const REJECT_TEXT = {
   build: 'You and the host play different versions of Little Alchemy.',
   full: 'That room is full.',
   replaced: 'You are connected to this room from another window or tab.',
+  kicked: 'The host removed you from this room.',
+  locked: 'This room is locked by its host.',
 };
 
 // Events the game listens for on document that must not see our UI's input.
@@ -61,8 +65,9 @@ function h(tag, props = {}, ...children) {
   return el;
 }
 
-export function colorFor(index) {
-  return PLAYER_COLORS[index] || PLAYER_COLORS[0];
+// replaceChildren that skips null/false slots (the DOM would print "null").
+function setChildren(el, ...children) {
+  el.replaceChildren(...children.flat().filter((child) => child !== null && child !== undefined && child !== false));
 }
 
 // Renders a list of rich-text parts:
@@ -92,6 +97,7 @@ export class CoopPanel {
     this.available = 'loading';
     this.status = { state: 'idle', role: null, code: null, detail: null };
     this.members = [];
+    this.room = { locked: false, banned: [], allowed: [] };
     this._build();
   }
 
@@ -153,7 +159,8 @@ export class CoopPanel {
     });
 
     this.toasts = h('div', { class: 'toasts', 'aria-live': 'polite' });
-    this.root = h('div', { class: 'root' }, this.pill, this.panel, this.toasts);
+    this.cursorLayer = h('div', { class: 'cursors', 'aria-hidden': 'true' });
+    this.root = h('div', { class: 'root' }, this.cursorLayer, this.pill, this.panel, this.toasts);
     shadow.append(h('style', { text: css }), this.root);
 
     (document.body || document.documentElement).append(this.host);
@@ -203,12 +210,28 @@ export class CoopPanel {
     this.playerList = h('ul', { class: 'players' });
     this.feed = h('ol', { class: 'feed' });
     this.feedEmpty = h('div', { class: 'feed-empty', text: 'Discoveries from everyone in the room show up here.' });
+    this.lockBadge = h('span', { class: 'lock-badge', text: 'Locked', title: 'New players can’t join this room' });
+    this.lockBadge.hidden = true;
+    this.lockButton = h('button', { class: 'subtle lock-button', onclick: () => this.handlers.onLock(!this.room.locked) });
+    this.awayTitle = h('div', { class: 'away-title' });
+    this.awaySubtitle = h('div', { class: 'away-subtitle' });
+    this.awayGrid = h('div', { class: 'away-grid' });
+    this.awayCard = h(
+      'div',
+      { class: 'away', role: 'status' },
+      h('button', { class: 'subtle away-close', title: 'Dismiss', 'aria-label': 'Dismiss', text: '✕', onclick: () => this.hideAway() }),
+      this.awayTitle,
+      this.awaySubtitle,
+      this.awayGrid,
+    );
+    this.awayCard.hidden = true;
     return h(
       'div',
       { class: 'view stack' },
+      this.awayCard,
       h('div', { class: 'room-code-row' }, this.roomCode, this.copyCodeButton, this.copyLinkButton),
       h('div', { class: 'status-line' }, this.statusDot, this.statusText),
-      h('div', { class: 'section-title', text: 'Players' }),
+      h('div', { class: 'players-head' }, h('div', { class: 'section-title', text: 'Players' }), this.lockBadge, this.lockButton),
       this.playerList,
       h('div', { class: 'section-title', text: 'Activity' }),
       this.feedEmpty,
@@ -222,6 +245,8 @@ export class CoopPanel {
     this.settingsName.addEventListener('change', () => this.handlers.onRename(this.settingsName.value));
     this.toastsToggle = h('input', { type: 'checkbox' });
     this.toastsToggle.addEventListener('change', () => this.handlers.onToasts(this.toastsToggle.checked));
+    this.cursorsToggle = h('input', { type: 'checkbox' });
+    this.cursorsToggle.addEventListener('change', () => this.handlers.onCursors(this.cursorsToggle.checked));
 
     this.backupText = h('p', { class: 'note' });
     this.restoreButton = h('button', { text: 'Restore backup', onclick: () => this._confirmRestore() });
@@ -239,6 +264,7 @@ export class CoopPanel {
       { class: 'view stack' },
       h('label', { class: 'field' }, 'Your name', this.settingsName),
       h('label', { class: 'check' }, this.toastsToggle, 'Pop-ups for your friends’ discoveries'),
+      h('label', { class: 'check' }, this.cursorsToggle, 'Show other players’ cursors'),
       h('div', { class: 'section-title', text: 'Backup' }),
       this.backupText,
       h('div', { class: 'row' }, this.restoreButton, this.discardButton),
@@ -365,6 +391,7 @@ export class CoopPanel {
       if (this.shadow.activeElement !== input) input.value = settings.name;
     }
     this.toastsToggle.checked = settings.toasts;
+    this.cursorsToggle.checked = settings.cursors;
     const server = settings.peerServer;
     this.serverHost.value = server ? server.host : '';
     this.serverPort.value = server ? String(server.port) : '';
@@ -395,21 +422,74 @@ export class CoopPanel {
 
   setMembers(members) {
     this.members = members;
-    this.playerList.replaceChildren(
+    const iAmHost = members.some((m) => m.you && m.host);
+    setChildren(
+      this.playerList,
       ...members.map((m) => {
         const dot = h('span', { class: 'dot' });
         dot.style.background = colorFor(m.color);
+        const actions =
+          iAmHost && !m.you
+            ? h(
+                'span',
+                { class: 'player-actions' },
+                h('button', {
+                  class: 'subtle',
+                  text: 'Make host',
+                  title: 'Make ' + m.name + ' the host',
+                  onclick: () => {
+                    if (window.confirm('Make ' + m.name + ' the host of this room?')) this.handlers.onHandOver(m);
+                  },
+                }),
+                h('button', {
+                  class: 'subtle danger',
+                  text: 'Kick',
+                  title: 'Remove ' + m.name + ' from the room',
+                  onclick: () => {
+                    if (window.confirm('Remove ' + m.name + ' from the room? They can’t rejoin until everyone has left.')) {
+                      this.handlers.onKick(m);
+                    }
+                  },
+                }),
+              )
+            : null;
         return h(
           'li',
-          {},
+          { 'data-player': m.id },
           dot,
-          h('span', { text: m.name }),
+          h('span', { class: 'player-name', text: m.name }),
           m.you ? h('span', { class: 'tag', text: 'you' }) : null,
           m.host ? h('span', { class: 'tag', text: 'host' }) : null,
+          actions,
         );
       }),
     );
     this._render();
+  }
+
+  setRoom(room) {
+    this.room = room;
+    this._render();
+  }
+
+  // "While you were away": a card listing the elements that arrived.
+  showAway({ title, subtitle, elements }) {
+    const shown = elements.slice(0, 48);
+    this.awayTitle.textContent = title;
+    this.awaySubtitle.textContent = subtitle;
+    setChildren(
+      this.awayGrid,
+      ...shown.map((e) =>
+        h('div', { class: 'away-item', title: e.name }, e.image ? h('img', { src: e.image, alt: '' }) : null, h('span', { text: e.name })),
+      ),
+      elements.length > shown.length ? h('div', { class: 'away-more', text: '+' + (elements.length - shown.length) + ' more' }) : null,
+    );
+    this.awayCard.hidden = false;
+    this.open();
+  }
+
+  hideAway() {
+    this.awayCard.hidden = true;
   }
 
   prefillCode(code) {
@@ -417,7 +497,8 @@ export class CoopPanel {
   }
 
   showBanner(text, { tone = 'info', actions = [] } = {}) {
-    this.banner.replaceChildren(
+    setChildren(
+      this.banner,
       h('div', { text }),
       actions.length
         ? h('div', { class: 'banner-actions' }, ...actions.map((a) => h('button', { class: a.primary ? 'primary' : '', text: a.label, onclick: a.onClick })))
@@ -489,6 +570,12 @@ export class CoopPanel {
       tone = 'bad';
     }
     if (this.available === 'fatal') tone = 'bad';
+
+    const iAmHost = this.members.some((m) => m.you && m.host);
+    this.lockBadge.hidden = !(inRoom && this.room.locked);
+    this.lockButton.hidden = !(inRoom && iAmHost);
+    this.lockButton.textContent = this.room.locked ? 'Unlock room' : 'Lock room';
+    this.lockButton.title = this.room.locked ? 'Let new players join again' : 'Stop new players from joining';
 
     this.statusDot.dataset.tone = tone;
     this.statusText.textContent = text;

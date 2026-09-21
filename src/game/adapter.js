@@ -9,7 +9,7 @@
 // exactly as if the player had combined the elements themselves.
 
 import { Emitter } from '../emitter.js';
-import { normalizePair, pairKey, tupleKey, tuplesFromHistory } from '../sync/pairs.js';
+import { normalizePair, pairKey, parseTuple, tupleKey, tuplesFromHistory } from '../sync/pairs.js';
 
 // Above this many pairs, rebuild once instead of replaying pair by pair.
 const TRIGGER_BATCH_LIMIT = 30;
@@ -157,7 +157,9 @@ export class GameAdapter extends Emitter {
   // real recipes. The game itself is updated asynchronously (see _flush).
   applyTuples(tuples, meta = {}) {
     const added = [];
-    for (const tuple of tuples) {
+    for (const raw of tuples) {
+      const tuple = parseTuple(raw);
+      if (!tuple) continue;
       const key = tupleKey(tuple);
       if (this._keys.has(key)) continue;
       if (this.childrenOf(tuple).length === 0) continue; // not a real recipe

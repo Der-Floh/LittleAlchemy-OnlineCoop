@@ -1,0 +1,26 @@
+/* Injected into the game page (not our shadow DOM) while in a room: marks
+   workspace elements another player is dragging, and smooths their moves. */
+#workspace > .element[data-coop-held] {
+  outline: 3px solid var(--coop-color, #a8328f);
+  outline-offset: 3px;
+  border-radius: 14px;
+}
+
+#workspace > .element[data-coop-held]::after {
+  content: attr(data-coop-holder);
+  position: absolute;
+  left: 50%;
+  top: -24px;
+  transform: translateX(-50%);
+  padding: 1px 7px;
+  border-radius: 8px;
+  background: var(--coop-color, #a8328f);
+  color: #fff;
+  font: 600 11px/16px 'Roboto Condensed', 'Segoe UI', system-ui, sans-serif;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+#workspace > .element.coop-remote {
+  transition: left 90ms linear, top 90ms linear;
+}

@@ -27,6 +27,18 @@ export function sanitizePeerServer(raw) {
   return { host, port, path, secure: raw.secure !== false, key };
 }
 
+// When we were last in each room (for the while-you-were-away summary).
+function sanitizeLastSeen(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object') return out;
+  const entries = Object.entries(raw)
+    .filter(([code, ts]) => normalizeRoomCode(code) === code && Number.isFinite(ts))
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 20);
+  for (const [code, ts] of entries) out[code] = ts;
+  return out;
+}
+
 export function loadSettings(storage = globalThis.localStorage) {
   let data = {};
   try {
@@ -40,6 +52,8 @@ export function loadSettings(storage = globalThis.localStorage) {
     name: sanitizeName(data.name) || defaultName(),
     room,
     toasts: data.toasts !== false,
+    cursors: data.cursors !== false,
+    lastSeen: sanitizeLastSeen(data.lastSeen),
     peerServer: sanitizePeerServer(data.peerServer),
   };
   saveSettings(settings, storage);

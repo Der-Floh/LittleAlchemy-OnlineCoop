@@ -137,6 +137,30 @@ export async function dragLibraryToWorkspace(page, elementId, x, y) {
   await page.mouse.up();
 }
 
+// Drags an element that is already on the canvas (found by its co-op id).
+export async function dragCanvasElement(page, oid, x, y) {
+  const img = page.locator(`#workspace > .element[data-coop-oid="${oid}"] img`);
+  const box = await img.boundingBox();
+  if (!box) throw new Error(`Canvas element ${oid} is not visible`);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(x, y, { steps: 15 });
+  await page.mouse.up();
+}
+
+// Canvas elements as {oid, el, left, top, held}, read from the page.
+export const canvasElements = (page) =>
+  page.evaluate(() =>
+    [...document.querySelectorAll('#workspace > .element[data-elementtype="workspaceBox"]')].map((node) => ({
+      oid: node.dataset.coopOid || null,
+      el: Number(node.getAttribute('data-elementid')),
+      left: parseFloat(node.style.left),
+      top: parseFloat(node.style.top),
+      held: node.dataset.coopHeld === '1',
+      visible: node.style.visibility !== 'hidden' && node.style.display !== 'none',
+    })),
+  );
+
 // Combines two library elements the way a player does: drag the first onto
 // the workspace, then drag the second on top of it.
 export async function combine(page, idA, idB, { x = 520, y = 420 } = {}) {
@@ -151,6 +175,65 @@ export async function waitForElement(page, id, timeout = 20_000) {
   await page.waitForFunction((el) => window.game.progress.includes(el), id, { timeout });
   await page.waitForSelector(`#library > .element[data-elementid="${id}"]`, { state: 'attached', timeout: 5_000 });
 }
+
+// Wipes the game's and the co-op script's saved state and reloads a fresh game.
+export async function resetGame(page) {
+  await page.evaluate(() => {
+    // The game saves canvas positions on unload; don't let that undo the reset.
+    if (window.workspace) window.removeEventListener('beforeunload', window.workspace.save, false);
+    localStorage.clear();
+  });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await waitForCoop(page);
+  await dismissLoadingScreen(page);
+}
+
+// A causally valid list of recipe tuples: each pair's parents are primes or
+// results of earlier pairs, like a real playthrough.
+export const validChain = (page, count) =>
+  page.evaluate((n) => {
+    const have = new Set(window.game.prime);
+    const done = new Set();
+    const out = [];
+    let grew = true;
+    while (grew && out.length < n) {
+      grew = false;
+      for (const id of Object.keys(window.bases.base)) {
+        const base = window.bases.base[id];
+        if (!base.parents || base.hidden) continue;
+        for (const p of base.parents) {
+          const a = Math.min(p[0], p[1]);
+          const b = Math.max(p[0], p[1]);
+          if (done.has(a + '+' + b) || !have.has(a) || !have.has(b)) continue;
+          done.add(a + '+' + b);
+          out.push([a, b, 1_600_000_000_000 + out.length]);
+          for (const child of window.workspace.sex([a, b])) have.add(child);
+          grew = true;
+          if (out.length >= n) break;
+        }
+        if (out.length >= n) break;
+      }
+    }
+    return out;
+  }, count);
+
+// Records events of a co-op module (window.__laCoop[target]) into
+// window.__rec[type], so tests can read them with recorded().
+export const recordEvents = (page, target, types) =>
+  page.evaluate(
+    ([name, list]) => {
+      window.__rec = window.__rec || {};
+      for (const type of list) {
+        window.__rec[type] = [];
+        window.__laCoop[name].on(type, (payload) => window.__rec[type].push(JSON.parse(JSON.stringify(payload))));
+      }
+    },
+    [target, types],
+  );
+
+export const recorded = (page, type) => page.evaluate((t) => (window.__rec && window.__rec[t]) || [], type);
+
+export const progressCounter = (page) => page.evaluate(() => document.getElementById('progress').textContent);
 
 export const coopState = (page) =>
   page.evaluate(() => ({

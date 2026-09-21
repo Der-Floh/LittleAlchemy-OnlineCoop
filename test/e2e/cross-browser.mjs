@@ -11,6 +11,7 @@ import {
   openGame,
   dismissLoadingScreen,
   combine,
+  dragLibraryToWorkspace,
   waitForElement,
 } from './helpers.mjs';
 
@@ -109,6 +110,39 @@ try {
   await until(bob, (id) => window.game.progress.includes(id), [E.lava], 'lava to be made in Firefox', 15_000);
   await waitForElement(alice.page, E.lava);
   step('lava made in Firefox showed up in Chrome');
+
+  // The shared canvas works both ways.
+  await dragLibraryToWorkspace(alice.page, E.air, 300, 250);
+  await until(
+    bob,
+    () => [...document.querySelectorAll('#workspace > .element[data-coop-oid]')].some((n) => n.getAttribute('data-elementid') === '4'),
+    [],
+    'air on the Firefox canvas',
+    15_000,
+  );
+  await firefoxDrag(bob, E.water, 300, 600);
+  await alice.page.waitForFunction(
+    () => [...document.querySelectorAll('#workspace > .element[data-coop-oid]')].some((n) => n.getAttribute('data-elementid') === '1'),
+    null,
+    { timeout: 15_000 },
+  );
+  step('canvas elements placed in either browser appear in the other');
+
+  // Firefox sees Chrome's cursor.
+  const aliceId = await alice.page.evaluate(() => window.__laCoop.session.playerId);
+  await alice.page.mouse.move(500, 300);
+  await alice.page.mouse.move(520, 320, { steps: 4 });
+  await until(
+    bob,
+    (id) => {
+      const node = document.getElementById('la-coop-root').shadowRoot.querySelector('.cursor[data-player="' + id + '"]');
+      return node && !node.hidden;
+    },
+    [aliceId],
+    "Chrome's cursor in Firefox",
+    15_000,
+  );
+  step("Chrome's cursor is visible in Firefox");
 
   // Bob leaves.
   ui = await coopUi(bob);

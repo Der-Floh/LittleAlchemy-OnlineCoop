@@ -21,7 +21,7 @@ function makePlayer(net, name, tuples = [], { build = '580', isRecipe, timing = 
     build,
     timing: { ...FAST_TIMING, ...timing },
   });
-  const events = { remote: [], joined: [], left: [], rejected: [] };
+  const events = { remote: [], joined: [], left: [], rejected: [], app: [], welcomed: [], kicked: [], departed: [], room: [] };
   for (const type of Object.keys(events)) session.on(type, (e) => events[type].push(e));
   const player = {
     name,
@@ -282,4 +282,137 @@ test('discoveries made while reconnecting are delivered with the next hello', as
   alice.session.join(CODE);
   await waitFor(() => alice.session.state === 'connected');
   assert.deepEqual(await converged([alice, bob]), ['40+41']);
+});
+
+// ---- v2: app messages, room flags, host controls ---------------------------
+
+test('app messages reach the host, which can relay, broadcast or address one player', async () => {
+  const net = new FakeNetwork();
+  const [alice, bob, carol] = await room(net, [['Alice'], ['Bob'], ['Carol']]);
+
+  assert.equal(bob.session.sendApp('cur', { x: 0.5 }), true);
+  await waitFor(() => alice.events.app.length === 1, { what: 'host receiving' });
+  const fromBob = alice.events.app[0];
+  assert.deepEqual([fromBob.k, fromBob.d, fromBob.by.name, fromBob.fromHost], ['cur', { x: 0.5 }, 'Bob', false]);
+  assert.equal(carol.events.app.length, 0); // no automatic relay
+
+  alice.session.relayApp('cur', { x: 0.5 }, fromBob.by.id);
+  await waitFor(() => carol.events.app.length === 1, { what: 'relay' });
+  assert.equal(carol.events.app[0].by.name, 'Bob');
+  await sleep(20);
+  assert.equal(bob.events.app.length, 0); // not echoed to the sender
+
+  alice.session.sendApp('ws', { ops: [] });
+  await waitFor(() => bob.events.app.length === 1 && carol.events.app.length === 2, { what: 'broadcast' });
+  assert.equal(bob.events.app[0].by.name, 'Alice');
+  assert.equal(bob.events.app[0].fromHost, true);
+
+  assert.equal(alice.session.sendAppTo('id-Carol', 'wsnap', { n: 1 }), true);
+  await waitFor(() => carol.events.app.length === 3, { what: 'direct message' });
+  await sleep(20);
+  assert.equal(bob.events.app.length, 1);
+  assert.equal(alice.session.sendAppTo('id-Nobody', 'wsnap', {}), false);
+});
+
+test('the host hears when a player has been welcomed, including after a rejoin', async () => {
+  const net = new FakeNetwork();
+  const [alice, bob] = await room(net, [['Alice'], ['Bob']]);
+  assert.deepEqual(alice.events.welcomed.map((e) => [e.member.name, e.rejoining]), [['Bob', false]]);
+  bob.session.leave();
+  await waitFor(() => alice.events.departed.length === 1, { what: 'departed' });
+  bob.session.join(CODE);
+  await waitFor(() => alice.events.welcomed.length === 2, { what: 'welcomed again' });
+});
+
+test('app messages are rate limited per player', async () => {
+  const net = new FakeNetwork();
+  const [alice, bob] = await room(net, [['Alice'], ['Bob']]);
+  for (let i = 0; i < 300; i++) bob.session.sendApp('cur', { i });
+  await sleep(100);
+  assert.ok(alice.events.app.length >= FAST_TIMING.appBucketSize, 'burst allowed');
+  assert.ok(alice.events.app.length < 200, 'flood capped, got ' + alice.events.app.length);
+});
+
+test('a kicked player is removed and stays out, even after the host changes', async () => {
+  const net = new FakeNetwork();
+  const [alice, bob, carol] = await room(net, [['Alice'], ['Bob'], ['Carol']]);
+  assert.equal(bob.session.kick('id-Carol'), false); // only the host can kick
+  assert.equal(alice.session.kick('id-Bob'), true);
+
+  await waitFor(() => bob.session.state === 'rejected', { what: 'Bob removed' });
+  assert.equal(bob.events.rejected[0].reason, 'kicked');
+  await waitFor(() => carol.session.members.length === 2, { what: 'Carol sees Bob gone' });
+  assert.deepEqual(carol.events.kicked.map((m) => m.name), ['Bob']);
+  assert.deepEqual(alice.events.kicked.map((m) => m.name), ['Bob']);
+  assert.deepEqual(carol.session.room.banned, ['id-Bob']);
+
+  bob.session.join(CODE);
+  await waitFor(() => bob.events.rejected.length === 2, { what: 'rejoin refused' });
+  assert.equal(bob.events.rejected[1].reason, 'kicked');
+
+  // Carol takes over when Alice leaves, and still keeps Bob out.
+  alice.session.leave();
+  await waitFor(() => carol.session.state === 'hosting', { what: 'Carol hosting' });
+  bob.session.join(CODE);
+  await waitFor(() => bob.events.rejected.length === 3, { what: 'refused by the new host' });
+  assert.equal(bob.events.rejected[2].reason, 'kicked');
+});
+
+test('a locked room turns newcomers away but lets its players reconnect', async () => {
+  const net = new FakeNetwork();
+  const [alice, bob] = await room(net, [['Alice'], ['Bob']]);
+  assert.equal(alice.session.setLocked(true), true);
+  await waitFor(() => bob.session.room.locked === true, { what: 'Bob sees the lock' });
+  assert.ok(bob.events.room.some((r) => r.locked));
+
+  const dave = makePlayer(net, 'Dave');
+  dave.session.join(CODE);
+  await waitFor(() => dave.session.state === 'rejected', { what: 'Dave refused' });
+  assert.equal(dave.events.rejected[0].reason, 'locked');
+
+  bob.session.leave();
+  await waitFor(() => alice.session.members.length === 1);
+  bob.session.join(CODE);
+  await waitFor(() => bob.session.state === 'connected', { what: 'Bob back in' });
+
+  alice.session.setLocked(false);
+  dave.session.join(CODE);
+  await waitFor(() => dave.session.state === 'connected', { what: 'Dave in after unlock' });
+});
+
+test('handing over makes the chosen player host and everyone follows', async () => {
+  const net = new FakeNetwork();
+  const [alice, bob, carol] = await room(net, [['Alice', [[1, 2, 1]]], ['Bob'], ['Carol']]);
+  alice.session.setLocked(true);
+  await waitFor(() => bob.session.room.locked && carol.session.room.locked);
+
+  assert.equal(bob.session.handOver('id-Carol'), false); // only the host can
+  assert.equal(alice.session.handOver('id-Bob'), true);
+
+  await waitFor(() => bob.session.state === 'hosting', { what: 'Bob hosting', timeout: 6000 });
+  await waitFor(() => alice.session.state === 'connected' && carol.session.state === 'connected', {
+    what: 'Alice and Carol following',
+    timeout: 6000,
+  });
+  await waitFor(() => [alice, bob, carol].every((p) => p.session.members.length === 3), { what: 'all three' });
+  assert.equal(bob.session.members.find((m) => m.host).name, 'Bob');
+  assert.equal(bob.session.room.locked, true); // room flags survive the handover
+  // Nobody was announced as leaving.
+  for (const p of [alice, bob, carol]) assert.deepEqual(p.events.left, [], p.name + ' saw a leave');
+
+  carol.discover(7, 8);
+  alice.discover(9, 10);
+  assert.deepEqual(await converged([alice, bob, carol]), ['1+2', '7+8', '9+10']);
+});
+
+test('handing over to a player who vanishes falls back to a normal host change', async () => {
+  const net = new FakeNetwork();
+  const [alice, bob, carol] = await room(net, [['Alice'], ['Bob'], ['Carol']]);
+  alice.session.handOver('id-Bob');
+  bob.session.leave({ immediate: true });
+  await waitFor(() => hosts([alice, carol]).length === 1 && connected(alice) && connected(carol), {
+    what: 'someone hosting',
+    timeout: 8000,
+  });
+  await waitFor(() => alice.session.members.length === 2 && carol.session.members.length === 2, { what: 'two left' });
 });

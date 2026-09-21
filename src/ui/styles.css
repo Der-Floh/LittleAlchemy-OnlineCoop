@@ -485,3 +485,159 @@ details .stack {
     animation: none;
   }
 }
+
+/* ---- players: host controls and lock ---- */
+
+.players-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: -4px;
+}
+
+.players-head .section-title {
+  margin: 0;
+  flex: 1;
+}
+
+.lock-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 0 5px;
+}
+
+.lock-button {
+  font-size: 11px;
+}
+
+.players .player-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-actions {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 2px;
+}
+
+.player-actions button {
+  font-size: 11px;
+  padding: 2px 5px;
+}
+
+/* ---- while-you-were-away card ---- */
+
+.away {
+  position: relative;
+  background: var(--surface);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 8px 10px 10px;
+}
+
+.away-close {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+}
+
+.away-title {
+  font-weight: 700;
+  font-size: 14px;
+  padding-right: 20px;
+}
+
+.away-subtitle {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.away-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(62px, 1fr));
+  gap: 6px 4px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.away-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.away-item img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+}
+
+.away-more {
+  align-self: center;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* ---- live cursors ---- */
+
+.cursors {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 1;
+}
+
+.cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transition: transform 90ms linear;
+  will-change: transform;
+}
+
+.cursor svg {
+  display: block;
+  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.35));
+}
+
+.cursor .name {
+  position: absolute;
+  left: 15px;
+  top: 17px;
+  padding: 1px 7px;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.cursor .ghost {
+  position: absolute;
+  left: 8px;
+  top: 36px;
+  width: 44px;
+  height: 44px;
+  opacity: 0.85;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cursor {
+    transition: none;
+  }
+}

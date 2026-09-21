@@ -4,12 +4,15 @@
 
 import { parseTuples } from '../sync/pairs.js';
 
-export const PROTOCOL_VERSION = 1;
+// v2: shared workspace, cursors and host controls (app messages, room flags, handover).
+export const PROTOCOL_VERSION = 2;
 export const MAX_MESSAGE_CHARS = 256 * 1024;
 export const MAX_PAIRS_PER_MESSAGE = 2000;
 export const MAX_NAME_LENGTH = 24;
 export const MAX_MEMBERS = 8;
 export const PLAYER_COLOR_COUNT = 8;
+// Banned / allowed player ids carried in room flags.
+const MAX_ROOM_IDS = 64;
 
 // No I, L, O, 0 or 1, so codes are easy to read aloud and type.
 export const ROOM_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -17,7 +20,9 @@ export const ROOM_CODE_LENGTH = 6;
 // Namespaces our peer ids on the shared public PeerJS broker.
 export const HOST_ID_PREFIX = 'lacoop1-';
 
-export const REJECT_REASONS = ['version', 'build', 'full', 'replaced'];
+export const REJECT_REASONS = ['version', 'build', 'full', 'replaced', 'kicked', 'locked'];
+
+export const EMPTY_ROOM_FLAGS = Object.freeze({ locked: false, banned: [], allowed: [] });
 
 export function makeRoomCode(random = Math.random) {
   let code = '';
@@ -66,6 +71,23 @@ function parsePlayer(raw) {
   const id = shortString(raw.id, 64);
   if (!id) return null;
   return { id, name: sanitizeName(raw.name) || 'Player' };
+}
+
+function parseIds(raw) {
+  if (!Array.isArray(raw)) return [];
+  const ids = [];
+  for (const item of raw.slice(0, MAX_ROOM_IDS)) {
+    const id = shortString(item, 64);
+    if (id && !ids.includes(id)) ids.push(id);
+  }
+  return ids;
+}
+
+// Room-wide settings the host enforces; every member keeps a copy so that a
+// new host (after a migration or handover) keeps enforcing them.
+export function parseRoomFlags(raw) {
+  if (!raw || typeof raw !== 'object') return { ...EMPTY_ROOM_FLAGS };
+  return { locked: raw.locked === true, banned: parseIds(raw.banned), allowed: parseIds(raw.allowed) };
 }
 
 function parseMembers(raw) {
@@ -117,6 +139,7 @@ export function decode(raw) {
           v: data.v,
           you: { color: colorIndex(data.you && data.you.color) },
           members: parseMembers(data.members),
+          room: parseRoomFlags(data.room),
           pairs: parseTuples(data.pairs, MAX_PAIRS_PER_MESSAGE),
         },
       };
@@ -136,7 +159,18 @@ export function decode(raw) {
       };
     }
     case 'presence':
-      return { msg: { t: 'presence', members: parseMembers(data.members) } };
+      return { msg: { t: 'presence', members: parseMembers(data.members), room: parseRoomFlags(data.room) } };
+    case 'app': {
+      // Feature messages (workspace, cursors). The payload is validated by
+      // the feature that handles it; here only the envelope is checked.
+      if (typeof data.k !== 'string' || !/^[a-z]{1,12}$/.test(data.k)) return { error: 'bad-app' };
+      if (!data.d || typeof data.d !== 'object') return { error: 'bad-app' };
+      return { msg: { t: 'app', k: data.k, d: data.d, by: shortString(data.by, 64) } };
+    }
+    case 'handover': {
+      const to = shortString(data.to, 64);
+      return to ? { msg: { t: 'handover', to } } : { error: 'bad-handover' };
+    }
     case 'rename': {
       const name = sanitizeName(data.name);
       return name ? { msg: { t: 'rename', name } } : { error: 'bad-rename' };

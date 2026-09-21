@@ -223,6 +223,14 @@ export const FAST_TIMING = {
   rejoinGraceMs: 300,
   addWindowMs: 1000,
   addMaxPerWindow: 40,
+  appBucketSize: 120,
+  appRefillPerSec: 60,
+  handoverReleaseMs: 10,
+  handoverRejoinMs: 80,
+  handoverClaimDelayMs: 15,
+  handoverClaimRetryMs: 10,
+  handoverClaimRetries: 16,
+  handoverFollowerDelayMs: 60,
 };
 
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

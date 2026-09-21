@@ -3,6 +3,9 @@
 
 import { Peer } from 'peerjs';
 import { GameAdapter } from './game/adapter.js';
+import { WorkspaceBridge } from './game/workspace-bridge.js';
+import { WorkspaceSync } from './workspace/sync.js';
+import { Cursors } from './cursors.js';
 import { RoomSession } from './net/session.js';
 import { makeRoomCode, normalizeRoomCode, sanitizeName } from './net/protocol.js';
 import { loadSettings, saveSettings, peerOptions, sanitizePeerServer } from './store.js';
@@ -32,6 +35,14 @@ function plural(n, word) {
   return n + ' ' + word + (n === 1 ? '' : 's');
 }
 
+function duration(ms) {
+  const minutes = Math.round(ms / 60_000);
+  if (minutes < 60) return plural(Math.max(1, minutes), 'minute');
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return plural(hours, 'hour');
+  return plural(Math.round(hours / 24), 'day');
+}
+
 async function main() {
   if (window.__laCoopStarted) return; // injected twice
   window.__laCoopStarted = true;
@@ -39,6 +50,11 @@ async function main() {
   const invite = readInviteCode();
   const adapter = new GameAdapter(window);
   let session = null;
+  let sync = null;
+  let cursors = null;
+  // When we were last in the room we're joining (for the while-away card).
+  let awaySince = null;
+  let hostId = null;
   let lastState = 'idle';
   let hadRoom = false;
 
@@ -70,6 +86,20 @@ async function main() {
         settings.toasts = on;
         saveSettings(settings);
       },
+      onCursors: (on) => {
+        settings.cursors = on;
+        saveSettings(settings);
+        if (cursors) cursors.setEnabled(on);
+      },
+      onKick: (member) => {
+        if (session) session.kick(member.id);
+      },
+      onHandOver: (member) => {
+        if (session) session.handOver(member.id);
+      },
+      onLock: (locked) => {
+        if (session) session.setLocked(locked);
+      },
       onRestoreBackup: () => {
         try {
           adapter.restoreBackup();
@@ -95,7 +125,12 @@ async function main() {
         saveSettings(settings);
         panel.setSettings(settings);
         panel.hideBanner();
-        if (session && session.code) session.join(session.code); // reconnect through the new server
+        if (session && session.code) {
+          // Reconnect through the new server.
+          sync.start();
+          cursors.start();
+          session.join(session.code);
+        }
       },
     },
   });
@@ -115,17 +150,29 @@ async function main() {
   adapter.start();
   panel.setBackup(adapter.backupInfo());
 
+  const log = (...args) => {
+    if (debugEnabled()) console.debug('[la-coop]', ...args);
+  };
   session = new RoomSession({
     createPeer: (id) => new Peer(id, peerOptions(settings, { debug: debugEnabled() })),
     game: adapter,
     player: { id: settings.playerId, name: settings.name },
     build: adapter.getBuild(),
-    log: (...args) => {
-      if (debugEnabled()) console.debug('[la-coop]', ...args);
-    },
+    log,
   });
+  const bridge = new WorkspaceBridge(window);
+  sync = new WorkspaceSync({ session, bridge, log });
 
-  window.__laCoop = { version: VERSION, session, adapter, settings, panel };
+  cursors = new Cursors({
+    win: window,
+    session,
+    bridge,
+    layer: panel.cursorLayer,
+    elementImage: (id) => adapter.elementInfo(id).image,
+  });
+  cursors.setEnabled(settings.cursors);
+
+  window.__laCoop = { version: VERSION, session, adapter, settings, panel, bridge, sync, cursors };
 
   // ---- session -> UI ---------------------------------------------------------
 
@@ -142,7 +189,28 @@ async function main() {
     }
     lastState = state;
   });
-  session.on('members', (members) => panel.setMembers(members));
+  session.on('members', (members) => {
+    panel.setMembers(members);
+    const host = members.find((m) => m.host);
+    if (host && hostId && host.id !== hostId && !host.you) panel.addFeed([{ who: host }, ' is now the host.'], { muted: true });
+    if (host) hostId = host.id;
+  });
+  session.on('room', (room) => {
+    const wasLocked = panel.room.locked;
+    panel.setRoom(room);
+    if (room.locked !== wasLocked && ['hosting', 'connected'].includes(session.state)) {
+      panel.addFeed([room.locked ? 'The room is now locked: no new players can join.' : 'The room is open again.'], { muted: true });
+    }
+  });
+  session.on('kicked', (member) => {
+    if (session.role === 'host') panel.addFeed(['You removed ', { who: member }, ' from the room.'], { muted: true });
+    else panel.addFeed([{ who: member }, ' was removed by the host.'], { muted: true });
+  });
+  session.on('handover', ({ to }) => {
+    hostId = to.id; // so the host change isn't announced twice
+    panel.addFeed(['You made ', { who: to }, ' the host.'], { muted: true });
+  });
+  sync.on('cleared', (by) => panel.addFeed([{ who: by }, ' cleared their elements from the canvas.'], { muted: true }));
   session.on('joined', (member) => panel.addFeed([{ who: member }, ' joined.'], { muted: true }));
   session.on('left', (member) => panel.addFeed([{ who: member }, ' left.'], { muted: true }));
   session.on('rejected', ({ reason, detail }) => {
@@ -153,7 +221,8 @@ async function main() {
     }
     if (settings.room) settings.room.active = false;
     saveSettings(settings);
-    panel.showBanner('Could not join: ' + panel.rejectText(reason, detail), { tone: 'bad' });
+    if (reason === 'kicked') panel.showBanner(panel.rejectText(reason, ''), { tone: 'bad' });
+    else panel.showBanner('Could not join: ' + panel.rejectText(reason, detail), { tone: 'bad' });
   });
 
   // ---- game -> session / UI ----------------------------------------------------
@@ -180,6 +249,7 @@ async function main() {
   adapter.on('applied', ({ meta, recipes, newElements }) => {
     const by = meta.by || { name: 'Someone', color: 0 };
     if (meta.sync) {
+      if (newElements.length > 0) showCatchUp(by, recipes.length, newElements);
       const summary = ': +' + plural(recipes.length, 'recipe') + (newElements.length ? ', +' + plural(newElements.length, 'new element') : '');
       if (by.host) panel.addFeed(['Synced with the room' + summary]);
       else panel.addFeed([{ who: by }, ' shared their progress' + summary]);
@@ -200,6 +270,28 @@ async function main() {
     }
   });
 
+  // "While you were away" (our own rejoin) or "Bob brought…" (someone joining).
+  function showCatchUp(by, recipeCount, newElements) {
+    const elements = newElements.map((id) => adapter.elementInfo(id)).sort((a, b) => a.name.localeCompare(b.name));
+    let title;
+    if (!by.host) title = by.name + ' brought new elements';
+    else if (awaySince) title = 'While you were away (' + duration(Date.now() - awaySince) + ')';
+    else title = 'New from the room';
+    panel.showAway({
+      title,
+      subtitle: '+' + plural(elements.length, 'element') + ', +' + plural(recipeCount, 'recipe'),
+      elements,
+    });
+    awaySince = null;
+  }
+
+  function rememberLastSeen() {
+    if (!session.code || !['hosting', 'connected'].includes(session.state)) return;
+    settings.lastSeen = { ...settings.lastSeen, [session.code]: Date.now() };
+    saveSettings(settings);
+  }
+  setInterval(rememberLastSeen, 60_000);
+
   adapter.on('reset', ({ reason }) => {
     if (reason === 'game-reset' && session.code) {
       panel.addFeed(['Your progress was reset. It fills up again from the room the next time you reconnect.'], { muted: true });
@@ -217,10 +309,16 @@ async function main() {
     if (!auto || hadRoom) panel.clearFeed();
     hadRoom = true;
     lastState = 'connecting';
+    awaySince = (settings.lastSeen && settings.lastSeen[code]) || null;
+    hostId = null;
+    panel.hideAway();
+    sync.start();
+    cursors.start();
     session.join(code);
   }
 
   function leaveRoom() {
+    rememberLastSeen();
     session.leave();
     if (settings.room) settings.room.active = false;
     saveSettings(settings);
@@ -276,6 +374,7 @@ async function main() {
 
   // Say goodbye on unload so the room notices (and can hand over hosting) at once.
   window.addEventListener('pagehide', () => {
+    rememberLastSeen();
     if (session.code) session.leave({ immediate: true });
   });
   window.addEventListener('pageshow', (event) => {

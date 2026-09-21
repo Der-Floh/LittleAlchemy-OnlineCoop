@@ -8,6 +8,12 @@
 // the full union of recipe pairs, any player can become host without losing
 // anything, and a hello/welcome exchange re-syncs everyone after each change.
 //
+// Besides recipes, the session carries "app" messages for features such as
+// the shared workspace and cursors (sendApp / relayApp / sendAppTo + 'app'
+// events), and enforces room flags set by the host: kicked (banned) players
+// and a locked room. Every member keeps a copy of the flags so a new host
+// keeps enforcing them. The host can also hand hosting over to another player.
+//
 // Dependencies are injected so the whole state machine can be unit-tested
 // against an in-memory fake of PeerJS:
 //   createPeer(id|undefined) -> PeerJS-like Peer
@@ -42,7 +48,22 @@ export const DEFAULT_TIMING = {
   rejoinGraceMs: 60_000,
   addWindowMs: 10_000,
   addMaxPerWindow: 40,
+  // App messages (workspace, cursors): token bucket per client on the host.
+  appBucketSize: 120,
+  appRefillPerSec: 60,
+  // Handover: the old host releases the room id, the chosen player claims it
+  // (retrying while the id is still taken), everyone else waits a bit longer.
+  handoverReleaseMs: 300,
+  handoverRejoinMs: 1_500,
+  handoverClaimDelayMs: 400,
+  handoverClaimRetryMs: 300,
+  handoverClaimRetries: 16,
+  handoverFollowerDelayMs: 1_800,
 };
+
+function emptyRoom() {
+  return { locked: false, banned: new Set(), allowed: new Set() };
+}
 
 const BROKER_ERRORS = new Set(['network', 'server-error', 'socket-error', 'socket-closed', 'ssl-unavailable']);
 
@@ -72,6 +93,13 @@ export class RoomSession extends Emitter {
     // Members we knew before the host went away; used to avoid announcing
     // everyone as "left" and "joined" again during a host migration.
     this._stash = null;
+    // Client side: players from before a host change who haven't reconnected
+    // yet; announced as gone only if they stay away (rejoinGraceMs).
+    this._expected = new Map();
+    this._room = emptyRoom();
+    // > 0 while claiming the host id after a handover (the old host may not
+    // have released it yet).
+    this._claimRetriesLeft = 0;
 
     // client side
     this._hostConn = null;
@@ -103,6 +131,14 @@ export class RoomSession extends Emitter {
     return this._memberList.map((m) => ({ ...m, you: m.id === this._player.id }));
   }
 
+  get playerId() {
+    return this._player.id;
+  }
+
+  get room() {
+    return { locked: this._room.locked, banned: [...this._room.banned], allowed: [...this._room.allowed] };
+  }
+
   join(code) {
     if (this._code) this._shutdown({ notify: true, immediate: false });
     this._code = code;
@@ -110,6 +146,9 @@ export class RoomSession extends Emitter {
     this._detail = null;
     this._everConnected = false;
     this._stash = null;
+    this._expected.clear();
+    this._claimRetriesLeft = 0;
+    this._setRoom(null);
     this._setMembers([], false);
     this._start(0);
   }
@@ -121,9 +160,92 @@ export class RoomSession extends Emitter {
     this._shutdown({ notify: true, immediate });
     this._code = null;
     this._stash = null;
+    this._expected.clear();
     this._detail = null;
+    this._setRoom(null);
     this._setMembers([], false);
     this._setState('idle');
+  }
+
+  // ---- app messages (features built on top of the room) ------------------
+
+  // Client: to the host. Host: to every client, as coming from the host.
+  sendApp(k, d) {
+    if (this._role === 'host') {
+      this._broadcast({ t: 'app', k, d, by: this._player.id }, null);
+      return true;
+    }
+    if (this._hostConn && this._welcomed) {
+      this._send(this._hostConn, { t: 'app', k, d });
+      return true;
+    }
+    return false;
+  }
+
+  // Host only: forward a client's message to everyone else.
+  relayApp(k, d, fromId) {
+    if (this._role !== 'host') return;
+    const data = encode({ t: 'app', k, d, by: fromId });
+    for (const client of this._clients.values()) {
+      if (!client.helloDone || client.player.id === fromId) continue;
+      this._sendRaw(client.conn, data);
+    }
+  }
+
+  // Host only: a message for one player.
+  sendAppTo(playerId, k, d) {
+    const client = this._clientById(playerId);
+    if (this._role !== 'host' || !client) return false;
+    this._send(client.conn, { t: 'app', k, d, by: this._player.id });
+    return true;
+  }
+
+  // ---- host controls -------------------------------------------------------
+
+  // Removes a player; they can't rejoin while the room stays open.
+  kick(playerId) {
+    if (this._role !== 'host' || playerId === this._player.id) return false;
+    this._room.banned.add(playerId);
+    this._room.allowed.delete(playerId);
+    const client = this._clientById(playerId);
+    if (client) {
+      const view = this._clientView(client);
+      this._rejectClient(client, 'kicked', 'The host removed you from this room.', { silent: true });
+      this.emit('kicked', view);
+    } else {
+      this._publishHostMembers();
+    }
+    this._emitRoom();
+    return true;
+  }
+
+  // A locked room only lets current (and recently dropped) players back in.
+  setLocked(locked) {
+    if (this._role !== 'host') return false;
+    this._room.locked = !!locked;
+    this._room.allowed = locked
+      ? new Set([...this._memberList, ...(this._stash || [])].map((m) => m.id))
+      : new Set();
+    this._publishHostMembers();
+    this._emitRoom();
+    return true;
+  }
+
+  // Makes another player the host: we release the room id, they claim it,
+  // and everyone (including us) reconnects to them.
+  handOver(playerId) {
+    const target = this._clientById(playerId);
+    if (this._role !== 'host' || !target) return false;
+    const gen = this._gen;
+    this._broadcast({ t: 'handover', to: playerId }, null);
+    this.emit('handover', { to: this._clientView(target) });
+    this._later(gen, this._t.handoverReleaseMs, () => {
+      this._stash = this._memberList;
+      this._failures = 0;
+      this._detail = 'handover';
+      this._start(this._t.handoverRejoinMs + this._random() * this._t.jitterMs);
+    });
+    return true;
   }
 
   broadcastLocal(tuples) {
@@ -231,6 +353,7 @@ export class RoomSession extends Emitter {
     peer.on('open', () => {
       if (!this._current(gen) || this._peer !== peer) return;
       this._brokerFailures = 0;
+      this._claimRetriesLeft = 0;
       if (this._role !== 'host') {
         this._role = 'host';
         this._failures = 0;
@@ -269,7 +392,12 @@ export class RoomSession extends Emitter {
       const type = err && err.type;
       if (type === 'unavailable-id') {
         if (this._role === 'host') this._demote(gen);
-        else {
+        else if (this._claimRetriesLeft > 0) {
+          // Handed the room: the old host is still releasing the id.
+          this._claimRetriesLeft--;
+          this._destroyPeer();
+          this._later(gen, this._t.handoverClaimRetryMs, () => this._tryHost(gen));
+        } else {
           // Lost the race to claim the room: join whoever won.
           this._destroyPeer();
           this._later(gen, this._t.claimRetryMs + this._random() * this._t.jitterMs, () => this._tryClient(gen));
@@ -313,16 +441,34 @@ export class RoomSession extends Emitter {
     this._hostConn = null;
     this._helloSent = false;
     if (wasWelcomed) {
-      // The host went away: re-run join-or-host quickly; one of us becomes the new host.
+      // The host went away: re-run join-or-host quickly; one of us becomes the
+      // new host. After a rehome or handover the old host is still around.
+      const graceful = why === 'rehome' || why === 'handover';
       const oldHost = this._memberList.find((m) => m.host);
-      if (oldHost && why !== 'rehome') this.emit('left', oldHost);
-      this._stash = this._memberList.filter((m) => !m.host || why === 'rehome');
+      if (oldHost && !graceful) this.emit('left', oldHost);
+      this._stash = [...this._memberList.filter((m) => !m.host || graceful), ...this._expected.values()];
+      this._expected.clear();
       this._detail = why;
       this._setMembers([], false);
-      this._start(this._t.hostLostDelayMs + this._random() * this._t.jitterMs);
+      const delay = why === 'handover' ? this._t.handoverFollowerDelayMs : this._t.hostLostDelayMs;
+      this._start(delay + this._random() * this._t.jitterMs);
     } else {
       this._retry(gen, why);
     }
+  }
+
+  // The host handed the room to us: claim the room id (retrying while the old
+  // host releases it); the others reconnect to us.
+  _takeOverAsHost(gen) {
+    if (!this._current(gen)) return;
+    this._stash = this._memberList;
+    this._detail = 'handover';
+    this._setMembers([], false);
+    const next = ++this._gen;
+    this._teardown();
+    this._setState('reconnecting', 'handover');
+    this._claimRetriesLeft = this._t.handoverClaimRetries;
+    this._later(next, this._t.handoverClaimDelayMs, () => this._tryHost(next));
   }
 
   // ---- client side ---------------------------------------------------------
@@ -345,8 +491,9 @@ export class RoomSession extends Emitter {
         this._everConnected = true;
         const stash = this._stash;
         this._stash = null;
+        this._setRoom(msg.room);
         this._setMembers(msg.members, false);
-        if (stash) this._announceDiff(stash, this._memberList);
+        if (stash) this._announceAfterHostChange(gen, stash);
         this._setState('connected');
         this._startHeartbeat(gen);
         const host = this._memberList.find((m) => m.host) || null;
@@ -359,9 +506,22 @@ export class RoomSession extends Emitter {
       case 'presence':
         if (this._welcomed) {
           const before = this._memberList;
+          this._setRoom(msg.room);
           this._setMembers(msg.members, false);
           this._announceDiff(before, this._memberList);
         }
+        break;
+      case 'app': {
+        if (!this._welcomed) break;
+        const host = this._memberList.find((m) => m.host);
+        const by = msg.by ? this._memberView({ id: msg.by, name: '?' }) : host || { id: '?', name: '?', color: 0 };
+        this.emit('app', { k: msg.k, d: msg.d, by, fromHost: true });
+        break;
+      }
+      case 'handover':
+        if (!this._welcomed) break;
+        if (msg.to === this._player.id) this._takeOverAsHost(gen);
+        else this._onHostLost(gen, 'handover');
         break;
       case 'reject':
         this._onRejected(msg.reason, msg.detail);
@@ -378,6 +538,7 @@ export class RoomSession extends Emitter {
   _onRejected(reason, detail) {
     this._shutdown({ notify: false, immediate: true });
     this._stash = null;
+    this._expected.clear();
     this._detail = reason;
     this._setMembers([], false);
     this._setState('rejected', reason);
@@ -435,6 +596,10 @@ export class RoomSession extends Emitter {
         client.player = { ...client.player, name: msg.name };
         this._publishHostMembers();
         break;
+      case 'app':
+        // Features on the host decide whether to relay (see relayApp).
+        if (this._allowApp(client)) this.emit('app', { k: msg.k, d: msg.d, by: this._clientView(client), fromHost: false });
+        break;
       case 'leave':
         this._dropClient(client, 'left');
         break;
@@ -451,6 +616,14 @@ export class RoomSession extends Emitter {
     }
     if (this._build && msg.build && msg.build !== this._build) {
       this._rejectClient(client, 'build', 'The host plays game build ' + this._build + ', you play ' + msg.build + '.');
+      return;
+    }
+    if (this._room.banned.has(msg.player.id)) {
+      this._rejectClient(client, 'kicked', 'The host removed you from this room.');
+      return;
+    }
+    if (this._room.locked && !this._room.allowed.has(msg.player.id)) {
+      this._rejectClient(client, 'locked', 'The host locked this room.');
       return;
     }
     // The same player connecting again: either a reconnect while the old
@@ -478,6 +651,7 @@ export class RoomSession extends Emitter {
       v: PROTOCOL_VERSION,
       you: { color: client.color },
       members: this._hostMembers(),
+      room: this._roomFlags(),
       pairs: this._game.getTuples(),
     });
     if (added.length > 0) {
@@ -486,6 +660,8 @@ export class RoomSession extends Emitter {
     }
     this._publishHostMembers();
     if (!rejoining) this.emit('joined', by);
+    // Lets features send their state to the newcomer (e.g. the workspace).
+    this.emit('welcomed', { member: by, rejoining });
   }
 
   _rejectClient(client, reason, detail, { silent = false } = {}) {
@@ -494,7 +670,9 @@ export class RoomSession extends Emitter {
     client.rejected = true;
     client.helloDone = false; // stops broadcasts to it and frees its slot right away
     if (wasMember) {
-      if (!silent) this.emit('left', this._clientView(client));
+      const view = this._clientView(client);
+      if (!silent) this.emit('left', view);
+      this.emit('departed', view);
       this._publishHostMembers();
     }
     // Give the reject message a moment to arrive before closing.
@@ -511,8 +689,28 @@ export class RoomSession extends Emitter {
       // already closed
     }
     if (!client.helloDone) return;
-    if (!silent) this.emit('left', this._clientView(client));
+    const view = this._clientView(client);
+    if (!silent) this.emit('left', view);
+    // Always fired when a member's connection ends, so features can clean up.
+    this.emit('departed', view);
     this._publishHostMembers();
+  }
+
+  _clientById(playerId) {
+    for (const client of this._clients.values()) {
+      if (client.helloDone && client.player.id === playerId) return client;
+    }
+    return null;
+  }
+
+  _allowApp(client) {
+    const now = this._now();
+    const bucket = client.appBucket || (client.appBucket = { tokens: this._t.appBucketSize, at: now });
+    bucket.tokens = Math.min(this._t.appBucketSize, bucket.tokens + ((now - bucket.at) / 1000) * this._t.appRefillPerSec);
+    bucket.at = now;
+    if (bucket.tokens < 1) return false;
+    bucket.tokens -= 1;
+    return true;
   }
 
   _allowAdd(client) {
@@ -556,8 +754,30 @@ export class RoomSession extends Emitter {
   _publishHostMembers() {
     if (this._role !== 'host') return;
     const members = this._hostMembers();
-    this._broadcast({ t: 'presence', members }, null);
+    this._broadcast({ t: 'presence', members, room: this._roomFlags() }, null);
     this._setMembers(members, false);
+  }
+
+  _roomFlags() {
+    return { locked: this._room.locked, banned: [...this._room.banned], allowed: [...this._room.allowed] };
+  }
+
+  // Adopts room flags from the host (null resets them, e.g. for a new room).
+  _setRoom(flags) {
+    const next = flags
+      ? { locked: flags.locked === true, banned: new Set(flags.banned || []), allowed: new Set(flags.allowed || []) }
+      : emptyRoom();
+    const changed = JSON.stringify(this._roomFlags()) !== JSON.stringify({
+      locked: next.locked,
+      banned: [...next.banned],
+      allowed: [...next.allowed],
+    });
+    this._room = next;
+    if (changed) this._emitRoom();
+  }
+
+  _emitRoom() {
+    this.emit('room', this.room);
   }
 
   _clientView(client) {
@@ -579,8 +799,29 @@ export class RoomSession extends Emitter {
   _announceDiff(before, after) {
     const beforeIds = new Set(before.map((m) => m.id));
     const afterIds = new Set(after.map((m) => m.id));
-    for (const m of after) if (!beforeIds.has(m.id) && m.id !== this._player.id) this.emit('joined', m);
-    for (const m of before) if (!afterIds.has(m.id) && m.id !== this._player.id) this.emit('left', m);
+    for (const m of after) {
+      if (beforeIds.has(m.id) || m.id === this._player.id) continue;
+      if (this._expected.delete(m.id)) continue; // back after a host change
+      this.emit('joined', m);
+    }
+    for (const m of before) {
+      if (afterIds.has(m.id) || m.id === this._player.id) continue;
+      this.emit(this._room.banned.has(m.id) ? 'kicked' : 'left', m);
+    }
+  }
+
+  // After reconnecting to a (new) host: newcomers are announced right away,
+  // players we knew who aren't back yet get a grace period.
+  _announceAfterHostChange(gen, stash) {
+    const present = new Set(this._memberList.map((m) => m.id));
+    const known = new Set(stash.map((m) => m.id));
+    for (const m of this._memberList) if (!known.has(m.id) && m.id !== this._player.id) this.emit('joined', m);
+    for (const m of stash) if (!present.has(m.id) && m.id !== this._player.id) this._expected.set(m.id, m);
+    if (this._expected.size === 0) return;
+    this._later(gen, this._t.rejoinGraceMs, () => {
+      for (const m of this._expected.values()) this.emit(this._room.banned.has(m.id) ? 'kicked' : 'left', m);
+      this._expected.clear();
+    });
   }
 
   _setMembers(list) {
@@ -633,8 +874,12 @@ export class RoomSession extends Emitter {
   }
 
   _send(conn, msg) {
+    this._sendRaw(conn, encode(msg));
+  }
+
+  _sendRaw(conn, data) {
     try {
-      if (conn && conn.open !== false) conn.send(encode(msg));
+      if (conn && conn.open !== false) conn.send(data);
     } catch (err) {
       this._log('send failed', err);
     }

@@ -2,9 +2,17 @@
 
 A browser extension (tested in Chrome and Firefox; other Chromium browsers
 such as Edge and Brave use the same build) that lets friends play
-[Little Alchemy classic](https://littlealchemy.com/) together. Everything one
-player discovers appears in everyone's game within about a second: in the
-library, in the element counter and in the save.
+[Little Alchemy classic](https://littlealchemy.com/) together:
+
+- **Shared discoveries:** everything one player discovers appears in everyone's
+  game within about a second: in the library, the element counter and the save.
+- **Shared canvas:** everyone sees and plays on the same workspace. Elements,
+  drags and combinations show up for all players, and you can see everyone's
+  cursor.
+- **Catching up:** when you come back to a room, a card shows what the others
+  discovered while you were away.
+- **Host controls:** the host can lock the room, remove a player, or hand the
+  host role to someone else.
 
 It runs on top of the official game. There is no server to run: players connect directly
 to each other (WebRTC, via [PeerJS](https://peerjs.com/)).
@@ -22,6 +30,16 @@ to each other (WebRTC, via [PeerJS](https://peerjs.com/)).
 5. Play. When someone discovers something new you get a pop-up, and the
    **Activity** list shows who made what.
 
+On the shared canvas:
+
+- Anyone can move or combine any element. While someone is dragging an
+  element it's outlined in their colour with their name, and nobody else can
+  grab it or drop onto it.
+- Everyone sees the same arrangement, fitted to their own window: nothing ends
+  up off-screen or behind the library, even on a smaller screen.
+- The game's **clear** button removes only the elements *you* placed or made.
+- Other players' cursors can be hidden under ⚙ → *Show other players' cursors*.
+
 Good to know:
 
 - **Progress is merged both ways.** When you join, everything you already had
@@ -32,10 +50,21 @@ Good to know:
   room leaves, someone else takes over automatically. If everyone leaves,
   nothing is lost (every save holds everything); the next person to join the
   same code opens it again.
+- **Joining replaces your canvas** with the room's (your progress is untouched;
+  elements can always be dragged from the library again).
 - Reloading the page rejoins your room automatically. **Leave room** stops that.
 - Use one Little Alchemy tab at a time; a second tab stays passive until you
   click *Use co-op in this tab*.
 - Rooms hold up to 8 players.
+- **Everyone needs the same extension version.** Version 0.2 uses a new
+  connection protocol, so 0.1 and 0.2 can't be in the same room; the game tells
+  you if that happens.
+
+Host controls (in the **Players** list, for whoever is host):
+
+- **Lock room:** nobody new can join; players who were already in can reconnect.
+- **Kick:** removes a player; they can't rejoin until the room has emptied.
+- **Make host:** hands the host role (and these controls) to another player.
 
 ## Installing
 
@@ -78,10 +107,11 @@ If the Co-op button doesn't show up in Firefox, click the puzzle-piece
   connection, **players in a room can see each other's IP addresses**, so only
   share codes with people you know. If a direct connection is impossible,
   traffic is relayed through PeerJS's TURN servers.
-- What is sent: your chosen name, a random player id, the game version, and
-  the recipes (pairs of element ids) you've discovered. Nothing else, and
-  nothing goes anywhere except to the players in your room (and the
-  connection metadata the PeerJS broker needs).
+- What is sent: your chosen name, a random player id, the game version, the
+  recipes (pairs of element ids) you've discovered, the elements on the canvas
+  and your cursor position over the canvas. Nothing else, and nothing goes
+  anywhere except to the players in your room (and the connection metadata the
+  PeerJS broker needs).
 - Settings live in the page's own storage (`laCoopSettings`, `laCoopBackup`)
   next to Little Alchemy's save.
 
@@ -93,6 +123,8 @@ If the Co-op button doesn't show up in Firefox, click the puzzle-piece
 | *Reconnecting… (direct connection failed)* | Some networks (school, office, strict NAT) block peer-to-peer. Try another network or a phone hotspot. |
 | *You are hosting. Waiting for friends…* but your friend is in a different room | Double-check the code: typing a code nobody is in simply opens a new empty room. |
 | *Could not join: different versions of Little Alchemy* | One of you has a cached old game version; reload with Ctrl+F5. |
+| *Could not join: Your co-op extension version does not match the host* | Everyone in the room needs the same extension version; update it on both sides. |
+| An element snaps back after you moved it | Someone else grabbed it a split second earlier; the host keeps the first grab. |
 | Co-op button missing | The extension must be enabled for littlealchemy.com. In Firefox, see above. |
 
 For connection logs, run `localStorage.laCoopDebug = '1'` in the page's console
@@ -111,11 +143,15 @@ npm run build        # bundle src/ -> extension/dist/coop.js (npm run watch to r
 ```
 
 ```bash
-npm test             # unit tests (protocol, merge logic, room session on a fake network)
+npm test             # unit tests (protocol, merge logic, canvas state, room session on a fake network)
 ```
 
 ```bash
-npm run test:e2e     # two real Chrome profiles play together on the live site
+npm run test:integration   # one player, real game, no network: game adapter, canvas bridge, cursors
+```
+
+```bash
+npm run test:e2e     # two or three real Chrome profiles play together on the live site
 ```
 
 ```bash
@@ -152,14 +188,19 @@ The extension injects one script into the page (`world: "MAIN"`):
 | File | Role |
 | --- | --- |
 | `src/game/adapter.js` | The only code touching the game. Hears local discoveries through the game's own `updateHistory` event, and applies remote ones through the game's `childCreated` event (small batches) or its own rebuild functions (big syncs), so the library, counter, save and achievements update as if you had combined the elements yourself. |
-| `src/net/session.js` | Room logic. Whoever holds the PeerJS id `lacoop1-<CODE>` is the host and relays; "join" means *connect to the host, or become it if nobody is*. On connect, hello/welcome exchange full recipe sets; afterwards only new recipes are sent. Handles host hand-over, heartbeats, rejection of different game/protocol versions, and duplicate windows. |
+| `src/net/session.js` | Room logic. Whoever holds the PeerJS id `lacoop1-<CODE>` is the host and relays; "join" means *connect to the host, or become it if nobody is*. On connect, hello/welcome exchange full recipe sets; afterwards only new recipes are sent. Handles host changes (automatic or handed over), heartbeats, room flags (locked, kicked players), rejection of different game/protocol versions, duplicate windows, and carries "app" messages for the features below. |
+| `src/game/workspace-bridge.js` | The only code touching the game's canvas. Wraps `WorkspaceBox.prototype.initEvents` to see every new element, watches removals with a `MutationObserver`, follows drags through the game's drag events, and applies other players' changes with the game's own `workspace.add/del` (updating the drop target's cached position so local drops keep working). |
+| `src/workspace/state.js`, `ops.js`, `projection.js`, `sync.js` | The shared canvas as data. The host referees: it applies each batch of changes all-or-nothing (refusing moves of elements someone else holds, or uses of elements that are already gone) and relays accepted ones. Clients apply their own changes at once and rebuild from snapshots when needed; a periodic fingerprint check repairs any drift. Positions are element centres relative to the playable area, so every screen shows the same arrangement. |
+| `src/cursors.js` | Live cursors (about 15 updates a second), including the element someone is dragging out of the library. |
 | `src/net/protocol.js`, `src/sync/pairs.js` | Message validation (everything from peers is untrusted) and pair helpers. |
 | `src/ui/*` | Shadow-DOM panel and pop-ups; stops keyboard events at its edge so the game's type-to-search doesn't eat your typing. |
 | `src/tabguard.js`, `src/store.js`, `src/main.js` | One co-op tab per browser, settings, wiring. |
 
 ### Ideas for later
 
-- "Discovered by" badges on library elements (tuples already reserve a slot for it).
-- Live cursors of the other players.
-- A fully shared workspace (elements, drags and combinations visible to everyone).
-- A self-hosted PeerServer/TURN as the default.
+- "Discovered by" badges on library elements and a scoreboard (tuples already reserve a slot for it).
+- Sharing failed combinations ("Bob already tried this").
+- Chat or quick reactions, and "suggest an element" to the room.
+- A background-tab alert, recent rooms, a translated co-op panel.
+- A versus mode, and an optional separate co-op save.
+- Publishing to the Chrome Web Store / Firefox Add-ons; a self-hosted PeerServer/TURN as the default.
