@@ -1,0 +1,11 @@
+{
+  // Tests, scripts and config files, run by Node. The DOM lib is here too,
+  // because page.evaluate() callbacks in the browser tests run in the page.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "types": ["node", "jquery"]
+  },
+  "include": ["test", "scripts", "src/**/*.d.ts", "build.ts", "playwright.config.ts"]
+}

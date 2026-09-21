@@ -1,4 +1,4 @@
-# Little Alchemy Co-op (unofficial)
+# Little Alchemy Co-op
 
 A browser extension (tested in Chrome and Firefox; other Chromium browsers
 such as Edge and Brave use the same build) that lets friends play
@@ -56,9 +56,9 @@ Good to know:
 - Use one Little Alchemy tab at a time; a second tab stays passive until you
   click *Use co-op in this tab*.
 - Rooms hold up to 8 players.
-- **Everyone needs the same extension version.** Version 0.2 uses a new
-  connection protocol, so 0.1 and 0.2 can't be in the same room; the game tells
-  you if that happens.
+- **Everyone needs version 0.2 or later.** Version 0.2 introduced a new
+  connection protocol, so 0.1 can't share a room with newer versions; the game
+  tells you if that happens. Versions from 0.2 on play together.
 
 Host controls (in the **Players** list, for whoever is host):
 
@@ -123,7 +123,7 @@ If the Co-op button doesn't show up in Firefox, click the puzzle-piece
 | *Reconnecting… (direct connection failed)* | Some networks (school, office, strict NAT) block peer-to-peer. Try another network or a phone hotspot. |
 | *You are hosting. Waiting for friends…* but your friend is in a different room | Double-check the code: typing a code nobody is in simply opens a new empty room. |
 | *Could not join: different versions of Little Alchemy* | One of you has a cached old game version; reload with Ctrl+F5. |
-| *Could not join: Your co-op extension version does not match the host* | Everyone in the room needs the same extension version; update it on both sides. |
+| *Could not join: Your co-op extension version does not match the host* | Someone still has version 0.1; everyone needs 0.2 or later. |
 | An element snaps back after you moved it | Someone else grabbed it a split second earlier; the host keeps the first grab. |
 | Co-op button missing | The extension must be enabled for littlealchemy.com. In Firefox, see above. |
 
@@ -132,7 +132,16 @@ and reload (`localStorage.removeItem('laCoopDebug')` turns them off).
 
 ## Development
 
-Requires Node 22+.
+Requires Node 22.18+ (it runs the TypeScript tests and scripts directly).
+
+The code is strict TypeScript. esbuild bundles `src/` into the one content
+script, and `tsc` only type-checks. Libraries (all bundled, all running in the
+page): [PeerJS](https://peerjs.com/) for the connections,
+[Preact](https://preactjs.com/) with [signals](https://preactjs.com/guide/v10/signals)
+for the UI, [valibot](https://valibot.dev/) to check everything that comes from
+other players or from storage (its schemas also define the message types),
+[nanoid](https://github.com/ai/nanoid) for random ids and room codes, and
+[es-toolkit](https://es-toolkit.dev/) for small helpers.
 
 ```bash
 npm install
@@ -143,7 +152,11 @@ npm run build        # bundle src/ -> extension/dist/coop.js (npm run watch to r
 ```
 
 ```bash
-npm test             # unit tests (protocol, merge logic, canvas state, room session on a fake network)
+npm run check        # type check, ESLint and unit tests: run this before committing
+```
+
+```bash
+npm test             # unit tests only (protocol, settings, merge logic, canvas state, room session on a fake network)
 ```
 
 ```bash
@@ -162,6 +175,9 @@ npm run test:e2e:firefox   # Chrome player + Firefox player (needs Firefox insta
 npm run lint:ext     # Mozilla's add-on linter
 ```
 
+(`lint:ext` reports one warning, an `innerHTML` assignment inside Preact's
+`dangerouslySetInnerHTML` support. The extension never uses that feature.)
+
 ```bash
 npm run run:firefox  # opens Firefox with the extension loaded temporarily
 ```
@@ -174,7 +190,10 @@ The end-to-end tests use your installed Chrome with throwaway profiles.
 Branded Chrome no longer accepts `--load-extension`, so the extension is loaded
 through the DevTools protocol (`Extensions.loadUnpacked`). Set `CHROME_PATH` to
 use another Chromium browser, and `HEADED=1` to watch the tests run.
-`node scripts/ui-preview.mjs <dir>` saves screenshots of the UI.
+`EXTENSION_DIR_B=<other build>/extension` makes the second player in the co-op and
+canvas tests run another build, e.g. the previous release, to check that the two
+versions can share a room. `node scripts/ui-preview.ts <dir>` saves screenshots
+of the UI.
 
 ### How it works
 
@@ -187,14 +206,15 @@ The extension injects one script into the page (`world: "MAIN"`):
 
 | File | Role |
 | --- | --- |
-| `src/game/adapter.js` | The only code touching the game. Hears local discoveries through the game's own `updateHistory` event, and applies remote ones through the game's `childCreated` event (small batches) or its own rebuild functions (big syncs), so the library, counter, save and achievements update as if you had combined the elements yourself. |
-| `src/net/session.js` | Room logic. Whoever holds the PeerJS id `lacoop1-<CODE>` is the host and relays; "join" means *connect to the host, or become it if nobody is*. On connect, hello/welcome exchange full recipe sets; afterwards only new recipes are sent. Handles host changes (automatic or handed over), heartbeats, room flags (locked, kicked players), rejection of different game/protocol versions, duplicate windows, and carries "app" messages for the features below. |
-| `src/game/workspace-bridge.js` | The only code touching the game's canvas. Wraps `WorkspaceBox.prototype.initEvents` to see every new element, watches removals with a `MutationObserver`, follows drags through the game's drag events, and applies other players' changes with the game's own `workspace.add/del` (updating the drop target's cached position so local drops keep working). |
-| `src/workspace/state.js`, `ops.js`, `projection.js`, `sync.js` | The shared canvas as data. The host referees: it applies each batch of changes all-or-nothing (refusing moves of elements someone else holds, or uses of elements that are already gone) and relays accepted ones. Clients apply their own changes at once and rebuild from snapshots when needed; a periodic fingerprint check repairs any drift. Positions are element centres relative to the playable area, so every screen shows the same arrangement. |
-| `src/cursors.js` | Live cursors (about 15 updates a second), including the element someone is dragging out of the library. |
-| `src/net/protocol.js`, `src/sync/pairs.js` | Message validation (everything from peers is untrusted) and pair helpers. |
-| `src/ui/*` | Shadow-DOM panel and pop-ups; stops keyboard events at its edge so the game's type-to-search doesn't eat your typing. |
-| `src/tabguard.js`, `src/store.js`, `src/main.js` | One co-op tab per browser, settings, wiring. |
+| `src/game/adapter.ts` | The only code touching the game. Hears local discoveries through the game's own `updateHistory` event, and applies remote ones through the game's `childCreated` event (small batches) or its own rebuild functions (big syncs), so the library, counter, save and achievements update as if you had combined the elements yourself. |
+| `src/net/session.ts` | Room logic. Whoever holds the PeerJS id `lacoop1-<CODE>` is the host and relays; "join" means *connect to the host, or become it if nobody is*. On connect, hello/welcome exchange full recipe sets; afterwards only new recipes are sent. Handles host changes (automatic or handed over), heartbeats, room flags (locked, kicked players), rejection of different game/protocol versions, duplicate windows, and carries "app" messages for the features below. |
+| `src/game/workspace-bridge.ts` | The only code touching the game's canvas. Wraps `WorkspaceBox.prototype.initEvents` to see every new element, watches removals with a `MutationObserver`, follows drags through the game's drag events, and applies other players' changes with the game's own `workspace.add/del` (updating the drop target's cached position so local drops keep working). |
+| `src/workspace/state.ts`, `ops.ts`, `projection.ts`, `sync.ts` | The shared canvas as data. The host referees: it applies each batch of changes all-or-nothing (refusing moves of elements someone else holds, or uses of elements that are already gone) and relays accepted ones. Clients apply their own changes at once and rebuild from snapshots when needed; a periodic fingerprint check repairs any drift. Positions are element centres relative to the playable area, so every screen shows the same arrangement. |
+| `src/cursors.ts` | Live cursors (about 15 updates a second), including the element someone is dragging out of the library. |
+| `src/net/protocol.ts`, `src/sync/pairs.ts` | Message schemas (everything from peers is untrusted) and pair helpers. |
+| `src/ui/*` | Panel, pop-ups and cursors as Preact components in a Shadow DOM, drawn from signals that `CoopPanel` (`panel.tsx`) updates; stops keyboard events at its edge so the game's type-to-search doesn't eat your typing. |
+| `src/tabguard.ts`, `src/store.ts`, `src/main.ts` | One co-op tab per browser, settings, wiring. |
+| `src/game/globals.d.ts` | Types for the parts of the game the extension relies on. |
 
 ### Ideas for later
 
@@ -204,3 +224,4 @@ The extension injects one script into the page (`world: "MAIN"`):
 - A background-tab alert, recent rooms, a translated co-op panel.
 - A versus mode, and an optional separate co-op save.
 - Publishing to the Chrome Web Store / Firefox Add-ons; a self-hosted PeerServer/TURN as the default.
+- TypeScript 7 (the native compiler), once typescript-eslint supports it; the project is on TypeScript 6 until then.

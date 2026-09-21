@@ -1,0 +1,10 @@
+{
+  // The extension's code, running in the game page: DOM, no Node APIs.
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "types": ["jquery"]
+  },
+  "include": ["**/*"]
+}
