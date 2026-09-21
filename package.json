@@ -15,7 +15,8 @@
         "test:e2e": "npm run build && playwright test test/e2e",
         "test:e2e:firefox": "npm run build && node test/e2e/cross-browser.ts",
         "lint:ext": "npm run build && web-ext lint --source-dir dist",
-        "run:firefox": "npm run build && web-ext run --source-dir dist --url https://littlealchemy.com/"
+        "run:firefox": "npm run build && web-ext run --source-dir dist --url https://littlealchemy.com/",
+        "pack-source": "node scripts/pack-source.ts"
     },
     "engines": {
         "node": ">=22.18"

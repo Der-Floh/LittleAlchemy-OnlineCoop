@@ -315,7 +315,9 @@ export class RoomSession extends Emitter<SessionEvents> {
     handOver(playerId: string): boolean {
         const target = this._clientById(playerId);
         if (this._role !== 'host' || !target) return false;
-        const gen = this._gen;
+        // The players' connections now close because they follow the new host,
+        // not because they leave: a new generation keeps us from announcing them.
+        const gen = ++this._gen;
         this._broadcast({ t: 'handover', to: playerId }, null);
         this.emit('handover', { to: this._clientView(target) });
         this._later(gen, this._t.handoverReleaseMs, () => {

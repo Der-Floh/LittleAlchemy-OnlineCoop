@@ -242,12 +242,14 @@ export const FAST_TIMING: Timing = {
     addMaxPerWindow: 40,
     appBucketSize: 120,
     appRefillPerSec: 60,
-    handoverReleaseMs: 10,
+    // Same order as DEFAULT_TIMING: the old host releases the room id well after the
+    // handover message has arrived, the chosen player claims it next, the others follow.
+    handoverReleaseMs: 40,
     handoverRejoinMs: 80,
-    handoverClaimDelayMs: 15,
+    handoverClaimDelayMs: 50,
     handoverClaimRetryMs: 10,
     handoverClaimRetries: 16,
-    handoverFollowerDelayMs: 60,
+    handoverFollowerDelayMs: 150,
 };
 
 export async function waitFor(predicate: () => boolean, { timeout = 4000, interval = 5, what = 'condition' } = {}): Promise<void> {

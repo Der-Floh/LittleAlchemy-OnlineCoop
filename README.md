@@ -1,4 +1,10 @@
-# Little Alchemy Co-op
+# ![LittleAlchemy-OnlineCoop icon](https://raw.githubusercontent.com/Der-Floh/LittleAlchemy-OnlineCoop/main/Assets/icon-x64.png) Little Alchemy Co-op
+
+[![Chrome users](https://img.shields.io/chrome-web-store/users/mmkohnifjldajadihckfeknpmgaciibo?label=chrome%20users&color=4285f4&logo=google-chrome)](https://chromewebstore.google.com/detail/mmkohnifjldajadihckfeknpmgaciibo)
+[![Firefox users](https://img.shields.io/amo/users/little-alchemy-co-op?label=firefox%20users&color=ff7139&logo=firefox-browser)](https://addons.mozilla.org/firefox/addon/little-alchemy-co-op/)
+[![Release](https://img.shields.io/github/v/release/Der-Floh/LittleAlchemy-OnlineCoop?label=Release&color=2ea44f&logo=github)](https://github.com/Der-Floh/LittleAlchemy-OnlineCoop/releases/latest)
+[![Issues](https://img.shields.io/github/issues/Der-Floh/LittleAlchemy-OnlineCoop?label=Issues&color=e4a000&logo=github)](https://github.com/Der-Floh/LittleAlchemy-OnlineCoop/issues)
+[![CI](https://github.com/Der-Floh/LittleAlchemy-OnlineCoop/actions/workflows/ci.yml/badge.svg)](https://github.com/Der-Floh/LittleAlchemy-OnlineCoop/actions/workflows/ci.yml)
 
 A browser extension (tested in Chrome and Firefox; other Chromium browsers such as Edge and Brave use the same build) that lets friends play [Little Alchemy classic](https://littlealchemy.com/) together:
 
@@ -131,6 +137,10 @@ npm run lint:ext     # Mozilla's add-on linter
 
 ```bash
 npm run run:firefox  # opens Firefox with the extension loaded temporarily
+```
+
+```bash
+npm run pack-source  # little-alchemy-coop-<version>-source.zip from the v<version> tag, for uploading to AMO by hand
 ```
 
 The end-to-end tests use your installed Chrome with throwaway profiles. Branded Chrome no longer accepts `--load-extension`, so the extension is loaded through the DevTools protocol (`Extensions.loadUnpacked`). Set `CHROME_PATH` to use another Chromium browser, and `HEADED=1` to watch the tests run. `EXTENSION_DIR_B=<other build>` (an unzipped release, or another checkout's `dist/`) makes the second player in the co-op and canvas tests run another build, e.g. the previous release, to check that the two versions can share a room. `node scripts/ui-preview.ts <dir>` saves screenshots of the UI.
