@@ -1,0 +1,31 @@
+{
+    "eslint.enable": true,
+    "eslint.useFlatConfig": true,
+    "eslint.lintTask.enable": true,
+    "eslint.validate": [
+        "javascript",
+        "typescript",
+    ],
+    "eslint.run": "onSave",
+    "editor.codeActionsOnSave": {
+        "source.fixAll.eslint": "always"
+    },
+    "js/ts.tsserver.experimental.enableProjectDiagnostics": true,
+    "files.exclude": {
+        "**/node_modules": true,
+        "**/.git": true,
+        "**/packages": true,
+        "**/test-results": true,
+        "**/playwright-report": true,
+        "**/.e2e-profiles": true
+    },
+    "search.exclude": {
+        "**/node_modules": true,
+        "**/.git": true,
+        "**/packages": true,
+        "**/test-results": true,
+        "**/playwright-report": true,
+        "**/.e2e-profiles": true
+    },
+    "files.eol": "\n",
+}

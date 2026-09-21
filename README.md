@@ -1,64 +1,40 @@
 # Little Alchemy Co-op
 
-A browser extension (tested in Chrome and Firefox; other Chromium browsers
-such as Edge and Brave use the same build) that lets friends play
-[Little Alchemy classic](https://littlealchemy.com/) together:
+A browser extension (tested in Chrome and Firefox; other Chromium browsers such as Edge and Brave use the same build) that lets friends play [Little Alchemy classic](https://littlealchemy.com/) together:
 
-- **Shared discoveries:** everything one player discovers appears in everyone's
-  game within about a second: in the library, the element counter and the save.
-- **Shared canvas:** everyone sees and plays on the same workspace. Elements,
-  drags and combinations show up for all players, and you can see everyone's
-  cursor.
-- **Catching up:** when you come back to a room, a card shows what the others
-  discovered while you were away.
-- **Host controls:** the host can lock the room, remove a player, or hand the
-  host role to someone else.
+- **Shared discoveries:** everything one player discovers appears in everyone's game within about a second: in the library, the element counter and the save.
+- **Shared canvas:** everyone sees and plays on the same workspace. Elements, drags and combinations show up for all players, and you can see everyone's cursor.
+- **Catching up:** when you come back to a room, a card shows what the others discovered while you were away.
+- **Host controls:** the host can lock the room, remove a player, or hand the host role to someone else.
 
-It runs on top of the official game. There is no server to run: players connect directly
-to each other (WebRTC, via [PeerJS](https://peerjs.com/)).
+It runs on top of the official game. There is no server to run: players connect directly to each other (WebRTC, via [PeerJS](https://peerjs.com/)).
 
-> Unofficial fan project, not affiliated with or endorsed by the makers of
-> Little Alchemy. It bundles none of the game's code or assets.
+> Unofficial fan project, not affiliated with or endorsed by the makers of Little Alchemy. It bundles none of the game's code or assets.
 
 ## How to play
 
 1. Install the extension (see below) and open <https://littlealchemy.com/>.
 2. Click the **Co-op** button at the top left, then **Create room**.
-3. Send your friend the 6-character code, or click **Invite link** and send
-   that (`https://littlealchemy.com/#coop=K7M4PX`).
+3. Send your friend the 6-character code, or click **Invite link** and send that (`https://littlealchemy.com/#coop=K7M4PX`).
 4. Your friend opens the link (or types the code under **or join a friend**).
-5. Play. When someone discovers something new you get a pop-up, and the
-   **Activity** list shows who made what.
+5. Play. When someone discovers something new you get a pop-up, and the **Activity** list shows who made what.
 
 On the shared canvas:
 
-- Anyone can move or combine any element. While someone is dragging an
-  element it's outlined in their colour with their name, and nobody else can
-  grab it or drop onto it.
-- Everyone sees the same arrangement, fitted to their own window: nothing ends
-  up off-screen or behind the library, even on a smaller screen.
+- Anyone can move or combine any element. While someone is dragging an element it's outlined in their colour with their name, and nobody else can grab it or drop onto it.
+- Everyone sees the same arrangement, fitted to their own window: nothing ends up off-screen or behind the library, even on a smaller screen.
 - The game's **clear** button removes only the elements *you* placed or made.
 - Other players' cursors can be hidden under ⚙ → *Show other players' cursors*.
 
 Good to know:
 
-- **Progress is merged both ways.** When you join, everything you already had
-  goes to the room and everything the room has comes to you, permanently.
-  The first time you ever join a room, your save is backed up once; you can
-  restore it under ⚙ → *Restore backup* (after leaving the room).
-- **A room lives as long as someone is in it.** If the player who created the
-  room leaves, someone else takes over automatically. If everyone leaves,
-  nothing is lost (every save holds everything); the next person to join the
-  same code opens it again.
-- **Joining replaces your canvas** with the room's (your progress is untouched;
-  elements can always be dragged from the library again).
+- **Progress is merged both ways.** When you join, everything you already had goes to the room and everything the room has comes to you, permanently. The first time you ever join a room, your save is backed up once; you can restore it under ⚙ → *Restore backup* (after leaving the room).
+- **A room lives as long as someone is in it.** If the player who created the room leaves, someone else takes over automatically. If everyone leaves, nothing is lost (every save holds everything); the next person to join the same code opens it again.
+- **Joining replaces your canvas** with the room's (your progress is untouched; elements can always be dragged from the library again).
 - Reloading the page rejoins your room automatically. **Leave room** stops that.
-- Use one Little Alchemy tab at a time; a second tab stays passive until you
-  click *Use co-op in this tab*.
+- Use one Little Alchemy tab at a time; a second tab stays passive until you click *Use co-op in this tab*.
 - Rooms hold up to 8 players.
-- **Everyone needs version 0.2 or later.** Version 0.2 introduced a new
-  connection protocol, so 0.1 can't share a room with newer versions; the game
-  tells you if that happens. Versions from 0.2 on play together.
+- **Everyone needs version 0.2 or later.** Version 0.2 introduced a new connection protocol, so 0.1 can't share a room with newer versions; the game tells you if that happens. Versions from 0.2 on play together.
 
 Host controls (in the **Players** list, for whoever is host):
 
@@ -68,52 +44,36 @@ Host controls (in the **Players** list, for whoever is host):
 
 ## Installing
 
-Build the package once (see *Development*), or use a zip you got from a friend:
-`dist-packages/little-alchemy-coop-<version>.zip`.
+Download `little-alchemy-coop-<version>.zip` from a GitHub release, or build it yourself (see *Development*): `npm run build` puts the extension in `dist/`.
 
 ### Chrome / Edge / Brave / other Chromium browsers
 
-1. Unzip the zip into a folder you'll keep (the browser loads it from there).
+1. Unzip the zip into a folder you'll keep (the browser loads it from there), or use `dist/` if you built it yourself.
 2. Open `chrome://extensions` (Edge: `edge://extensions`).
 3. Turn on **Developer mode**, click **Load unpacked**, select the folder.
 
-Updating: replace the folder's contents and click the reload arrow on the
-extension's card.
+Updating: replace the folder's contents and click the reload arrow on the extension's card.
 
 ### Firefox
 
-- **Quick test (until Firefox restarts):** open `about:debugging#/runtime/this-firefox`,
-  click **Load Temporary Add-on…** and pick the zip (or `extension/manifest.json`).
-- **Permanent install:** Firefox only installs signed add-ons. Signing is free
-  and automatic for self-distributed ("unlisted") add-ons:
-    1. Create a Mozilla account and get API credentials at
-       <https://addons.mozilla.org/developers/addon/api/key/>.
-    2. Run:
+- **Quick test (until Firefox restarts):** open `about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on…** and pick the zip (or `dist/manifest.json`).
+- **Permanent install:** Firefox only installs signed add-ons. Signing is free and automatic for self-distributed ("unlisted") add-ons:
+    1. Create a Mozilla account and get API credentials at <https://addons.mozilla.org/developers/addon/api/key/>.
+    2. Build it (see *Development*), then run:
        ```bash
-       npx web-ext sign --source-dir extension --channel unlisted --artifacts-dir dist-packages --api-key YOUR_JWT_ISSUER --api-secret YOUR_JWT_SECRET
+       npx web-ext sign --source-dir dist --channel unlisted --api-key YOUR_JWT_ISSUER --api-secret YOUR_JWT_SECRET
        ```
-    3. Share the resulting `.xpi`; opening it in Firefox installs it.
+    3. Share the resulting `.xpi` (web-ext puts it in `web-ext-artifacts/`); opening it in Firefox installs it.
 
-  Mozilla may ask for the source code of the bundled script: that's this
-  repository (`npm ci && npm run build` reproduces `extension/dist/coop.js`).
+  Mozilla may ask for the source code of the bundled script: that's this repository (`npm ci && npm run build` reproduces `dist/coop.js`).
 
-If the Co-op button doesn't show up in Firefox, click the puzzle-piece
-(Extensions) menu and allow the extension on littlealchemy.com.
+If the Co-op button doesn't show up in Firefox, click the puzzle-piece (Extensions) menu and allow the extension on littlealchemy.com.
 
 ## Privacy
 
-- There is no co-op server. Players find each other through the public PeerJS
-  broker (`0.peerjs.com`) and then talk directly. Like any peer-to-peer
-  connection, **players in a room can see each other's IP addresses**, so only
-  share codes with people you know. If a direct connection is impossible,
-  traffic is relayed through PeerJS's TURN servers.
-- What is sent: your chosen name, a random player id, the game version, the
-  recipes (pairs of element ids) you've discovered, the elements on the canvas
-  and your cursor position over the canvas. Nothing else, and nothing goes
-  anywhere except to the players in your room (and the connection metadata the
-  PeerJS broker needs).
-- Settings live in the page's own storage (`laCoopSettings`, `laCoopBackup`)
-  next to Little Alchemy's save.
+- There is no co-op server. Players find each other through the public PeerJS broker (`0.peerjs.com`) and then talk directly. Like any peer-to-peer connection, **players in a room can see each other's IP addresses**, so only share codes with people you know. If a direct connection is impossible, traffic is relayed through PeerJS's TURN servers.
+- What is sent: your chosen name, a random player id, the game version, the recipes (pairs of element ids) you've discovered, the elements on the canvas and your cursor position over the canvas. Nothing else, and nothing goes anywhere except to the players in your room (and the connection metadata the PeerJS broker needs).
+- Settings live in the page's own storage (`laCoopSettings`, `laCoopBackup`) next to Little Alchemy's save.
 
 ## Troubleshooting
 
@@ -127,28 +87,20 @@ If the Co-op button doesn't show up in Firefox, click the puzzle-piece
 | An element snaps back after you moved it | Someone else grabbed it a split second earlier; the host keeps the first grab. |
 | Co-op button missing | The extension must be enabled for littlealchemy.com. In Firefox, see above. |
 
-For connection logs, run `localStorage.laCoopDebug = '1'` in the page's console
-and reload (`localStorage.removeItem('laCoopDebug')` turns them off).
+For connection logs, run `localStorage.laCoopDebug = '1'` in the page's console and reload (`localStorage.removeItem('laCoopDebug')` turns them off).
 
 ## Development
 
 Requires Node 22.18+ (it runs the TypeScript tests and scripts directly).
 
-The code is strict TypeScript. esbuild bundles `src/` into the one content
-script, and `tsc` only type-checks. Libraries (all bundled, all running in the
-page): [PeerJS](https://peerjs.com/) for the connections,
-[Preact](https://preactjs.com/) with [signals](https://preactjs.com/guide/v10/signals)
-for the UI, [valibot](https://valibot.dev/) to check everything that comes from
-other players or from storage (its schemas also define the message types),
-[nanoid](https://github.com/ai/nanoid) for random ids and room codes, and
-[es-toolkit](https://es-toolkit.dev/) for small helpers.
+The code is strict TypeScript. esbuild bundles `src/` into the one content script, and `tsc` only type-checks. Libraries (all bundled, all running in the page): [PeerJS](https://peerjs.com/) for the connections, [Preact](https://preactjs.com/) with [signals](https://preactjs.com/guide/v10/signals) for the UI, [valibot](https://valibot.dev/) to check everything that comes from other players or from storage (its schemas also define the message types), [nanoid](https://github.com/ai/nanoid) for random ids and room codes, and [es-toolkit](https://es-toolkit.dev/) for small helpers.
 
 ```bash
 npm install
 ```
 
 ```bash
-npm run build        # bundle src/ -> extension/dist/coop.js (npm run watch to rebuild on change)
+npm run build        # build the extension into dist/: public/, src/ bundled, icons rendered from assets/icon.svg (npm run watch to rebuild on change)
 ```
 
 ```bash
@@ -175,65 +127,36 @@ npm run test:e2e:firefox   # Chrome player + Firefox player (needs Firefox insta
 npm run lint:ext     # Mozilla's add-on linter
 ```
 
-(`lint:ext` reports one warning, an `innerHTML` assignment inside Preact's
-`dangerouslySetInnerHTML` support. The extension never uses that feature.)
+(`lint:ext` reports one warning, an `innerHTML` assignment inside Preact's `dangerouslySetInnerHTML` support. The extension never uses that feature.)
 
 ```bash
 npm run run:firefox  # opens Firefox with the extension loaded temporarily
 ```
 
-```bash
-npm run package      # dist-packages/little-alchemy-coop-<version>.zip
-```
+The end-to-end tests use your installed Chrome with throwaway profiles. Branded Chrome no longer accepts `--load-extension`, so the extension is loaded through the DevTools protocol (`Extensions.loadUnpacked`). Set `CHROME_PATH` to use another Chromium browser, and `HEADED=1` to watch the tests run. `EXTENSION_DIR_B=<other build>` (an unzipped release, or another checkout's `dist/`) makes the second player in the co-op and canvas tests run another build, e.g. the previous release, to check that the two versions can share a room. `node scripts/ui-preview.ts <dir>` saves screenshots of the UI.
 
-The end-to-end tests use your installed Chrome with throwaway profiles.
-Branded Chrome no longer accepts `--load-extension`, so the extension is loaded
-through the DevTools protocol (`Extensions.loadUnpacked`). Set `CHROME_PATH` to
-use another Chromium browser, and `HEADED=1` to watch the tests run.
-`EXTENSION_DIR_B=<other build>/extension` makes the second player in the co-op and
-canvas tests run another build, e.g. the previous release, to check that the two
-versions can share a room. `node scripts/ui-preview.ts <dir>` saves screenshots
-of the UI.
-
-On GitHub, every push and pull request runs `.github/workflows/ci.yml` (the
-shared extension-ci workflow): `npm run check`, plus a build that Mozilla's
-add-on linter checks and that is kept as a zip among the run's artifacts. The
-integration and end-to-end tests only run locally, since they need a real Chrome
-and the live game.
+On GitHub, every push and pull request runs `.github/workflows/ci.yml` (the shared extension-ci workflow): `npm run check`, plus a build that Mozilla's add-on linter checks and that is kept as a zip among the run's artifacts. The integration and end-to-end tests only run locally, since they need a real Chrome and the live game.
 
 ### Releasing
 
-Publishing a GitHub release runs `.github/workflows/publish.yml`, which uses the
-shared [extension-publish](https://github.com/Der-Floh/Der-Floh/blob/main/.github/CI.md#consuming-a-browser-extension)
-workflow:
+Publishing a GitHub release runs `.github/workflows/publish.yml`, which uses the shared [extension-publish](https://github.com/Der-Floh/Der-Floh/blob/main/.github/CI.md#consuming-a-browser-extension) workflow:
 
-1. Set the new version with `npm version 0.3.1 --no-git-tag-version`, run
-   `npm run build` (it copies the version into the manifest), and commit.
-2. Publish a release tagged `v0.3.1`. The run stops if the tag and the version
-   differ.
-3. The workflow builds and lints the extension, attaches
-   `little-alchemy-coop-<version>.zip` to the release, and submits it to the
-   Chrome Web Store and to Firefox Add-ons (with the source code, which Mozilla's
-   reviewers rebuild with `npm ci && npm run build`). A pre-release only gets
-   the zip.
+1. Set the new version with `npm version 0.3.1 --no-git-tag-version` and commit (the build writes it into the manifest).
+2. Publish a release tagged `v0.3.1`. The run stops if the tag and the version differ.
+3. The workflow builds and lints the extension, attaches `little-alchemy-coop-<version>.zip` to the release, and submits it to the Chrome Web Store and to Firefox Add-ons (with the source code, which Mozilla's reviewers rebuild with `npm ci && npm run build`). A pre-release only gets the zip.
 
-The stores only take new versions of an extension they already have: upload the
-first version by hand (the zip from the release), then switch each store on in
-the repository settings:
+The stores only take new versions of an extension they already have: upload the first version by hand (the zip from the release), then switch each store on in the repository settings:
 
 | Store | Variables | Secrets |
 | --- | --- | --- |
 | Chrome Web Store | `CHROME_EXTENSION_ID` (the item id), `CHROME_PUBLISHER_ID` | `CHROME_CLIENT_ID`, `CHROME_CLIENT_SECRET`, `CHROME_REFRESH_TOKEN` |
-| Firefox Add-ons | `FIREFOX_ADDON_ID` = `little-alchemy-coop@fan-project` | `AMO_API_KEY`, `AMO_API_SECRET` |
+| Firefox Add-ons | `FIREFOX_ADDON_ID` = `little-alchemy-coop@der_floh` | `AMO_API_KEY`, `AMO_API_SECRET` |
 
 The shared workflow's documentation explains where each value comes from.
 
 ### How it works
 
-Little Alchemy classic (build 580) keeps its save as a list of recipe pairs
-(`localStorage.progress = {parents: [[a, b], …], date: […]}`) and rebuilds
-everything else from it. The co-op state is simply that list, merged between
-players (a grow-only set, so merging is a union and can't conflict).
+Little Alchemy classic (build 580) keeps its save as a list of recipe pairs (`localStorage.progress = {parents: [[a, b], …], date: […]}`) and rebuilds everything else from it. The co-op state is simply that list, merged between players (a grow-only set, so merging is a union and can't conflict).
 
 The extension injects one script into the page (`world: "MAIN"`):
 

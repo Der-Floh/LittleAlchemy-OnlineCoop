@@ -12,7 +12,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import type {} from '../../src/debug.ts';
 
-export const EXTENSION_DIR = path.resolve(process.env.EXTENSION_DIR ?? 'extension');
+export const EXTENSION_DIR = path.resolve(process.env.EXTENSION_DIR ?? 'dist');
 const PROFILES_DIR = path.resolve('.e2e-profiles');
 
 // Element ids in Little Alchemy classic (build 580).

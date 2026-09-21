@@ -7,7 +7,7 @@ import tseslint from 'typescript-eslint';
 import { defineConfig, globalIgnores } from 'eslint/config';
 
 export default defineConfig(
-    globalIgnores(['extension/dist/', 'dist-packages/', 'test-results/', 'playwright-report/', '.e2e-profiles/', 'web-ext-artifacts/']),
+    globalIgnores(['dist/', 'test-results/', 'playwright-report/', '.e2e-profiles/']),
     js.configs.recommended,
     tseslint.configs.recommendedTypeChecked,
     {

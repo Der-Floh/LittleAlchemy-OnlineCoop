@@ -17,7 +17,7 @@ jobs:
     publish:
         uses: Der-Floh/Der-Floh/.github/workflows/extension-publish.yml@v1
         with:
-            extension-dir: extension
+            extension-dir: dist
             package-name: little-alchemy-coop
             chrome-extension-id: ${{ vars.CHROME_EXTENSION_ID }}
             chrome-publisher-id: ${{ vars.CHROME_PUBLISHER_ID }}

@@ -7,7 +7,6 @@
     "scripts": {
         "build": "node build.ts",
         "watch": "node build.ts --watch",
-        "icons": "node scripts/make-icons.ts",
         "typecheck": "tsc -p src && tsc -p .",
         "lint": "eslint .",
         "test": "node --test \"test/unit/*.test.ts\"",
@@ -15,10 +14,8 @@
         "test:integration": "npm run build && playwright test test/integration",
         "test:e2e": "npm run build && playwright test test/e2e",
         "test:e2e:firefox": "npm run build && node test/e2e/cross-browser.ts",
-        "lint:ext": "npm run build && web-ext lint --source-dir extension",
-        "run:firefox": "npm run build && web-ext run --source-dir extension --url https://littlealchemy.com/",
-        "package": "npm run build && web-ext build --source-dir extension --artifacts-dir dist-packages --filename little-alchemy-coop-{version}.zip --overwrite-dest",
-        "sign:firefox": "npm run build && web-ext sign --source-dir extension --artifacts-dir dist-packages --channel unlisted"
+        "lint:ext": "npm run build && web-ext lint --source-dir dist",
+        "run:firefox": "npm run build && web-ext run --source-dir dist --url https://littlealchemy.com/"
     },
     "engines": {
         "node": ">=22.18"
@@ -34,6 +31,7 @@
     "devDependencies": {
         "@eslint/js": "^10.0.1",
         "@playwright/test": "^1.63.0",
+        "@resvg/resvg-js": "^2.6.2",
         "@types/jquery": "^3.5.34",
         "@types/node": "^22.20.4",
         "@types/selenium-webdriver": "^4.35.7",

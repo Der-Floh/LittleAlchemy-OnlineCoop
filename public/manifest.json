@@ -2,7 +2,6 @@
     "manifest_version": 3,
     "name": "Little Alchemy Co-op",
     "short_name": "LA Co-op",
-    "version": "0.3.0",
     "description": "Play Little Alchemy classic together: every discovery syncs live between friends, peer-to-peer. Unofficial fan project.",
     "icons": {
         "16": "icons/icon16.png",
@@ -25,7 +24,7 @@
                 "https://www.littlealchemy.com/*"
             ],
             "js": [
-                "dist/coop.js"
+                "coop.js"
             ],
             "world": "MAIN",
             "run_at": "document_idle"
@@ -33,7 +32,7 @@
     ],
     "browser_specific_settings": {
         "gecko": {
-            "id": "little-alchemy-coop@fan-project",
+            "id": "little-alchemy-coop@der_floh",
             "strict_min_version": "140.0",
             "data_collection_permissions": {
                 "required": [
