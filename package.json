@@ -1,0 +1,31 @@
+{
+  "name": "little-alchemy-coop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Unofficial peer-to-peer co-op for Little Alchemy (classic) as a Chrome/Firefox extension.",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "icons": "node scripts/make-icons.mjs",
+    "test": "node --test \"test/unit/*.test.js\"",
+    "test:e2e": "npm run build && playwright test",
+    "test:e2e:firefox": "npm run build && node test/e2e/cross-browser.mjs",
+    "lint:ext": "npm run build && web-ext lint --source-dir extension",
+    "run:firefox": "npm run build && web-ext run --source-dir extension --url https://littlealchemy.com/",
+    "package": "npm run build && web-ext build --source-dir extension --artifacts-dir dist-packages --filename little-alchemy-coop-{version}.zip --overwrite-dest",
+    "sign:firefox": "npm run build && web-ext sign --source-dir extension --artifacts-dir dist-packages --channel unlisted"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "peerjs": "^1.5.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "esbuild": "^0.28.2",
+    "selenium-webdriver": "^4.49.0",
+    "web-ext": "^10.6.0"
+  }
+}

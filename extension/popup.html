@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Little Alchemy Co-op</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --text: #2b2833;
+        --muted: #6d6878;
+        --accent: #a8328f;
+        --accent-text: #ffffff;
+        --border: #e7e2ec;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #26232b;
+          --text: #eeecf2;
+          --muted: #aaa5b5;
+          --accent: #d264b6;
+          --accent-text: #1d1a21;
+          --border: #3d3845;
+        }
+      }
+      body {
+        margin: 0;
+        width: 280px;
+        padding: 16px;
+        background: var(--bg);
+        color: var(--text);
+        font: 13px/1.4 'Segoe UI', system-ui, -apple-system, sans-serif;
+      }
+      h1 {
+        font-size: 16px;
+        margin: 0 0 4px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      h1 img {
+        width: 24px;
+        height: 24px;
+      }
+      p {
+        margin: 0 0 12px;
+        color: var(--muted);
+      }
+      ol {
+        margin: 0 0 14px;
+        padding-left: 18px;
+      }
+      li {
+        margin-bottom: 4px;
+      }
+      a.button {
+        display: block;
+        text-align: center;
+        text-decoration: none;
+        background: var(--accent);
+        color: var(--accent-text);
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-weight: 600;
+      }
+      small {
+        display: block;
+        margin-top: 10px;
+        color: var(--muted);
+        border-top: 1px solid var(--border);
+        padding-top: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1><img src="icons/icon48.png" alt="" />Little Alchemy Co-op</h1>
+    <p>Play Little Alchemy classic together with friends.</p>
+    <ol>
+      <li>Open Little Alchemy and click the <b>Co-op</b> button at the top left.</li>
+      <li>Create a room and send the code (or invite link) to a friend.</li>
+      <li>Everything either of you discovers shows up for both.</li>
+    </ol>
+    <a class="button" href="https://littlealchemy.com/" target="_blank" rel="noopener">Open Little Alchemy</a>
+    <small>Unofficial fan project, not affiliated with the makers of Little Alchemy.</small>
+  </body>
+</html>
