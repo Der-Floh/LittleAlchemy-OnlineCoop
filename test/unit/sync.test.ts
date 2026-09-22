@@ -32,6 +32,7 @@ class FakeBridge extends Emitter<{ ops: LocalBatch }> implements BridgeLike {
     canvas = new WorkspaceState();
     active = false;
     dragging = false;
+    dragged: string | null = null;
     me = '';
     ownerOf: (oid: string) => string | null = () => null;
 
@@ -51,6 +52,9 @@ class FakeBridge extends Emitter<{ ops: LocalBatch }> implements BridgeLike {
     }
     isDragging(): boolean {
         return this.dragging;
+    }
+    draggedOid(): string | null {
+        return this.dragged;
     }
     applyOps(ops: Op[], by: Who): void {
         this.canvas.applyBatch(ops, by.id);
@@ -167,6 +171,47 @@ test("a player's grab ends when they disconnect", async () => {
     await waitFor(() => carol.bridge.canvas.holderOf('x') === 'id-Bob');
     bob.session.leave();
     await waitFor(() => carol.bridge.canvas.holderOf('x') === null && alice.sync.state.holderOf('x') === null);
+});
+
+test('a refused drop releases the grab that came with it', async () => {
+    const net = new FakeNetwork();
+    const alice = makePlayer(net, 'Alice', [['a', 'x', 5, 0.3, 0.5], ['a', 'y', 6, 0.7, 0.5]]);
+    const bob = makePlayer(net, 'Bob');
+    const carol = makePlayer(net, 'Carol');
+    for (const p of [alice, bob, carol]) await join(p);
+    await waitFor(() => same([alice, bob, carol]) && carol.bridge.canvas.size === 2);
+    carol.bridge.local([['h', 'y']]);
+    await waitFor(() => alice.sync.state.holderOf('y') === 'id-Carol');
+    bob.bridge.local([['h', 'x'], ['m', 'x', 0.6, 0.5]]);
+    await waitFor(() => carol.bridge.canvas.holderOf('x') === 'id-Bob');
+
+    // Bob drops x onto y, which Carol holds: the host refuses the whole drop.
+    bob.bridge.local([['d', 'y'], ['d', 'x'], ['a', 'b1', 7, 0.65, 0.5]]);
+    await waitFor(() => alice.sync.state.holderOf('x') === null && carol.bridge.canvas.holderOf('x') === null, {
+        what: "Bob's grab on x released",
+    });
+    assert.equal(alice.sync.state.holderOf('y'), 'id-Carol');
+    assert.notEqual(alice.sync.state.get('x'), null);
+    assert.equal(alice.sync.state.get('b1'), null);
+});
+
+test('a snapshot keeps the grab on the element still being dragged', async () => {
+    const net = new FakeNetwork();
+    const alice = makePlayer(net, 'Alice', [['a', 'x', 5, 0.5, 0.5]]);
+    const bob = makePlayer(net, 'Bob');
+    await join(alice);
+    await join(bob);
+    await waitFor(() => same([alice, bob]) && bob.bridge.canvas.size === 1 && !bob.sync.awaitingSnapshot);
+    bob.bridge.dragging = true;
+    bob.bridge.dragged = 'x';
+    bob.bridge.local([['h', 'x']]);
+    await waitFor(() => alice.sync.state.holderOf('x') === 'id-Bob');
+    const snaps = snapshotsTo(bob);
+    bob.session.sendApp('ws', { seq: 'x', ops: [['z', 'x']] }); // malformed: earns Bob a snapshot
+    await waitFor(() => snaps.length === 1, { what: 'snapshot' });
+    await sleep(50);
+    assert.equal(alice.sync.state.holderOf('x'), 'id-Bob');
+    assert.equal(bob.sync.state.holderOf('x'), 'id-Bob');
 });
 
 test('when the host leaves, the canvas carries on with the new host', async () => {

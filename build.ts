@@ -4,12 +4,19 @@
 //   node build.ts --watch  rebuild on change (with inline source maps)
 import * as esbuild from 'esbuild';
 import { Resvg } from '@resvg/resvg-js';
-import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 const outDir = 'dist';
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string };
 const watch = process.argv.includes('--watch');
+
+// A browser with dist/ loaded as an unpacked extension can hold its icons open,
+// and rewriting even an unchanged one then fails.
+function writeIfChanged(file: string, data: Buffer): void {
+    if (existsSync(file) && readFileSync(file).equals(data)) return;
+    writeFileSync(file, data);
+}
 
 cpSync('public', outDir, { recursive: true });
 const template = JSON.parse(readFileSync('public/manifest.json', 'utf8')) as { icons: Record<string, string> };
@@ -22,7 +29,7 @@ for (const [size, file] of Object.entries(manifest.icons)) {
     const target = join(outDir, file);
     const png = new Resvg(iconSvg, { fitTo: { mode: 'width', value: Number(size) } }).render().asPng();
     mkdirSync(dirname(target), { recursive: true });
-    writeFileSync(target, png);
+    writeIfChanged(target, png);
 }
 
 const options: esbuild.BuildOptions = {

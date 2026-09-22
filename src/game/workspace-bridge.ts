@@ -14,6 +14,10 @@
 //   player we update that cache, or local drops onto it would miss.
 // - Disabling a Droppable makes the game destroy the element on the next drag,
 //   so drops onto elements held by others are refused in Droppable._accept.
+// - A drop out of the library trusts the drop target it hovered: remote
+//   deletions wait until such a drag ends, or its element would be orphaned.
+// - The game runs one drag at a time (Draggables.isDragging) and ends it only on
+//   its own release. A new press means that release got lost, so it ends the drag.
 // - workspace.del() removes document-level jQuery pointer handlers, so our
 //   pointer listeners are native.
 //
@@ -67,7 +71,7 @@ export class WorkspaceBridge extends Emitter<BridgeEvents> implements BridgeLike
     private _flushAt = 0;
     private _lastFlush = 0;
     private _applying = 0; // > 0 while we change the canvas ourselves
-    private _dragging: { oid: string; held: boolean } | null = null; // while the local player drags a canvas element
+    private _dragging: { oid: string | null; held: boolean } | null = null; // while the local player drags; oid null: out of the library
     private _deferred: [ops: Op[], by: Who][] = []; // remote batches waiting for the local drag to end
     private _pendingReconcile: WorkspaceState | null = null;
     private _pendingMembers: MemberInfo = new Map();
@@ -160,6 +164,7 @@ export class WorkspaceBridge extends Emitter<BridgeEvents> implements BridgeLike
         $doc.on('dragMove' + NS, (_e, drag: LADrag) => this._onDragMove(drag));
         $doc.on('dragEnd' + NS, () => this._onDragEnd());
 
+        w.addEventListener('pointerdown', (event) => this._endStaleDrag(event), true);
         for (const type of POINTER_START_EVENTS) {
             w.workspace.el.addEventListener(type, (event) => this._blockHeld(event), true);
         }
@@ -206,6 +211,10 @@ export class WorkspaceBridge extends Emitter<BridgeEvents> implements BridgeLike
         return this._dragging !== null;
     }
 
+    draggedOid(): string | null {
+        return this._dragging?.oid ?? null;
+    }
+
     // ---- local changes -> ops ------------------------------------------------------
 
     private _newOid(): string {
@@ -247,16 +256,16 @@ export class WorkspaceBridge extends Emitter<BridgeEvents> implements BridgeLike
 
     private _onDragStart(drag: LADrag): void {
         if (!this.active) return;
-        const oid = this._canvasOid(drag);
-        if (oid) this._dragging = { oid, held: false };
+        this._dragging = { oid: this._canvasOid(drag), held: false };
     }
 
     private _onDragMove(drag: LADrag): void {
-        if (!this.active || !this._dragging || this._canvasOid(drag) !== this._dragging.oid) return;
+        const dragging = this._dragging;
+        if (!this.active || !dragging?.oid || this._canvasOid(drag) !== dragging.oid) return;
         if (!drag.dragPoint || (drag.dragPoint.x === 0 && drag.dragPoint.y === 0)) return;
-        const { oid } = this._dragging;
-        if (!this._dragging.held) {
-            this._dragging.held = true;
+        const oid = dragging.oid;
+        if (!dragging.held) {
+            dragging.held = true;
             this._push(['h', oid]);
         }
         const { x, y } = toShared(drag.position.x, drag.position.y, this.metrics());
@@ -270,8 +279,8 @@ export class WorkspaceBridge extends Emitter<BridgeEvents> implements BridgeLike
         if (!this.active || !this._dragging) return;
         const { oid, held } = this._dragging;
         this._dragging = null;
-        const box = this._boxes.get(oid);
-        if (box && nodeOf(box).parentNode === this.win.workspace.el && held) {
+        const box = oid === null ? undefined : this._boxes.get(oid);
+        if (oid !== null && box && nodeOf(box).parentNode === this.win.workspace.el && held) {
             const { x, y } = this._sharedPosition(box);
             this._shared.set(oid, { x, y });
             this._push(['m', oid, x, y]);
@@ -338,12 +347,18 @@ export class WorkspaceBridge extends Emitter<BridgeEvents> implements BridgeLike
     // Applies ops from another player.
     applyOps(ops: Op[], by: Who): void {
         if (!this.active) return;
-        const draggedOid = this._dragging?.oid;
-        if (this._deferred.length > 0 || (draggedOid && ops.some((op) => op[1] === draggedOid))) {
+        if (this._deferred.length > 0 || this._disturbsDrag(ops)) {
             this._deferred.push([ops, by]);
             return;
         }
         this._applyNow(ops, by);
+    }
+
+    private _disturbsDrag(ops: Op[]): boolean {
+        const dragging = this._dragging;
+        if (!dragging) return false;
+        if (dragging.oid === null) return ops.some((op) => op[0] === 'd');
+        return ops.some((op) => op[1] === dragging.oid);
     }
 
     private _applyNow(ops: Op[], by: Who): void {
@@ -473,6 +488,20 @@ export class WorkspaceBridge extends Emitter<BridgeEvents> implements BridgeLike
     }
 
     // ---- interactions -------------------------------------------------------------------
+
+    // A new press: any drag the game still thinks is running has lost its release.
+    private _endStaleDrag(event: PointerEvent): void {
+        if (!this.active || !event.isPrimary) return;
+        const stale = this.win.Draggables?.isDragging;
+        if (stale) {
+            try {
+                stale.dragEnd();
+            } catch (err) {
+                console.error('[la-coop] could not end a stale drag', err);
+            }
+        }
+        if (this._dragging) this._onDragEnd();
+    }
 
     // Elements another player is dragging can't be picked up.
     private _blockHeld(event: Event): void {

@@ -48,12 +48,13 @@ declare global {
         prototype: LAWorkspaceBox;
     }
 
-    // What the game's drag events (dragStart / dragMove / dragEnd) carry.
+    // A drag (the game's Draggable), which its dragStart / dragMove / dragEnd events carry.
     interface LADrag {
         element: HTMLElement | null;
         position: { x: number; y: number };
         dragPoint?: { x: number; y: number };
         options?: { helper?: unknown };
+        dragEnd(): void;
     }
 
     interface LAWorkspace {
@@ -87,5 +88,7 @@ declare global {
         settings?: { data?: { markFinalElements?: boolean } };
         WorkspaceBox: LAWorkspaceBoxConstructor;
         Droppable: LADroppableConstructor;
+        // The drag in progress; the game starts no other until this one has ended.
+        Draggables?: { isDragging: LADrag | null };
     }
 }

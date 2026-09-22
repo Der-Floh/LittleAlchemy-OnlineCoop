@@ -1,6 +1,6 @@
 {
     "name": "little-alchemy-coop",
-    "version": "0.3.1",
+    "version": "0.3.2",
     "private": true,
     "description": "Unofficial peer-to-peer co-op for Little Alchemy (classic) as a Chrome/Firefox extension.",
     "type": "module",

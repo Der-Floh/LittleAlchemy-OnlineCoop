@@ -34,6 +34,7 @@ export interface BridgeLike {
     deactivate(): void;
     currentElements(): AddOp[];
     isDragging(): boolean;
+    draggedOid(): string | null;
     applyOps(ops: Op[], by: Who): void;
     reconcile(state: WorkspaceState, members: MemberInfo): void;
 }
@@ -155,6 +156,7 @@ export class WorkspaceSync extends Emitter<SyncEvents> {
         this._lastSeq.clear();
         this._mismatches.clear();
         this.bridge.reconcile(this.state, this._memberInfo());
+        this._releaseStaleHolds();
     }
 
     private _becomeClient(): void {
@@ -173,6 +175,7 @@ export class WorkspaceSync extends Emitter<SyncEvents> {
             else {
                 this.log('own workspace change refused:', result.reason);
                 this.bridge.reconcile(this.state, this._memberInfo());
+                this._releaseStaleHolds();
             }
             return;
         }
@@ -247,7 +250,17 @@ export class WorkspaceSync extends Emitter<SyncEvents> {
         this.bridge.reconcile(this.state, this._memberInfo());
         // A fresh snapshot comes from a host that may never have seen our batches.
         for (const p of this._pending) if (snap.fresh || !p.sent) this._send(p);
+        this._releaseStaleHolds();
         this.emit('snapshot', { size: this.state.size });
+    }
+
+    // Our grabs end with our drags. The room can still record one after a
+    // refused drop, whose release was refused with it; let go of those.
+    private _releaseStaleHolds(): void {
+        const dragged = this.bridge.draggedOid();
+        const ops: Op[] = [];
+        for (const [oid, who] of this.state.holds) if (who === this.me && oid !== dragged) ops.push(['r', oid]);
+        if (ops.length > 0) this._onLocal({ ops, clear: false });
     }
 
     private _sendSnapshot(playerId: string, fresh: boolean): void {

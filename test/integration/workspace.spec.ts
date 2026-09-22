@@ -64,6 +64,16 @@ const oidOf = async (index: number) => {
     if (!op) throw new Error('no op #' + index);
     return op[1];
 };
+// Visible canvas elements the game no longer manages, e.g. a library drop it lost track of.
+const deadElements = () =>
+    page.evaluate(
+        () =>
+            [...document.querySelectorAll<HTMLElement>('#workspace > .element')].filter(
+                (node) => node.style.display !== 'none' && !window.jQuery(node).data('ptr'),
+            ).length,
+    );
+// The game refuses every new drag while it thinks one is still running.
+const gameDragRunning = () => page.evaluate(() => (window.Draggables?.isDragging ?? null) !== null);
 
 test('dropping an element from the library adds it at its shared position', async () => {
     await dragLibraryToWorkspace(page, E.water, 500, 400);
@@ -177,6 +187,47 @@ test("an element another player is dragging can't be picked up or combined with"
 
     await remote([['r', 'r1']]); // Bob lets go
     expect((await canvasElements(page)).find((e) => e.oid === 'r1')?.held).toBe(false);
+});
+
+test("another player's deletion waits until a drag out of the library drops", async () => {
+    await remote([['a', 'r1', E.earth, 0.4, 0.5]]);
+    const [earth] = await canvasElements(page);
+    if (!earth) throw new Error('earth is not on the canvas');
+    const fire = await page.locator(`#library > .element[data-elementid="${E.fire}"] img`).boundingBox();
+    if (!fire) throw new Error('fire is not visible in the library');
+    await page.mouse.move(fire.x + fire.width / 2, fire.y + fire.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(earth.left + 37, earth.top + 37, { steps: 15 }); // hovering Bob's earth
+    await remote([['d', 'r1']]); // meanwhile Bob uses the earth up
+    expect((await canvasElements(page)).map((e) => e.oid)).toEqual(['r1']);
+    await page.mouse.up();
+    await expect.poll(async () => (await canvasElements(page)).map((e) => e.el)).toEqual([E.lava]);
+    expect(await deadElements()).toBe(0);
+});
+
+test('a drag whose release never arrives ends with the next press', async () => {
+    await dragLibraryToWorkspace(page, E.water, 400, 400);
+    await dragLibraryToWorkspace(page, E.fire, 700, 300);
+    await expect.poll(sentOps).toHaveLength(2);
+    const waterOid = await oidOf(0);
+    const fireOid = await oidOf(1);
+    const water = await page.locator(`#workspace > .element[data-coop-oid="${waterOid}"] img`).boundingBox();
+    if (!water) throw new Error('water is not visible');
+    await page.mouse.move(water.x + water.width / 2, water.y + water.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(450, 600, { steps: 10 });
+    // The release can't reach the game any more, like a touch whose element vanished mid-drag.
+    await page.evaluate(() => (window.Draggables?.isDragging as unknown as { _unbindEvents(): void } | null)?._unbindEvents());
+    await page.mouse.up();
+    expect(await gameDragRunning()).toBe(true);
+
+    await page.mouse.click(300, 650); // puts the water down
+    expect(await gameDragRunning()).toBe(false);
+    const before = (await canvasElements(page)).find((e) => e.oid === fireOid);
+    await dragCanvasElement(page, fireOid, 900, 550);
+    const after = (await canvasElements(page)).find((e) => e.oid === fireOid);
+    expect(after?.left).not.toBe(before?.left);
+    expect(await gameDragRunning()).toBe(false);
 });
 
 test('resizing the window re-fits elements without sending anything', async () => {
