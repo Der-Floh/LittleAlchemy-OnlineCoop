@@ -6,7 +6,7 @@
 [![Issues](https://img.shields.io/github/issues/Der-Floh/LittleAlchemy-OnlineCoop?label=Issues&color=e4a000&logo=github)](https://github.com/Der-Floh/LittleAlchemy-OnlineCoop/issues)
 [![CI](https://github.com/Der-Floh/LittleAlchemy-OnlineCoop/actions/workflows/ci.yml/badge.svg)](https://github.com/Der-Floh/LittleAlchemy-OnlineCoop/actions/workflows/ci.yml)
 
-A browser extension (tested in Chrome and Firefox; other Chromium browsers such as Edge and Brave use the same build) that lets friends play [Little Alchemy classic](https://littlealchemy.com/) together:
+An Open Source browser extension that lets friends play [Little Alchemy classic](https://littlealchemy.com/) together:
 
 - **Shared discoveries:** everything one player discovers appears in everyone's game within about a second: in the library, the element counter and the save.
 - **Shared canvas:** everyone sees and plays on the same workspace. Elements, drags and combinations show up for all players, and you can see everyone's cursor.

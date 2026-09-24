@@ -2,7 +2,7 @@
     "manifest_version": 3,
     "name": "Little Alchemy Co-op",
     "short_name": "LA Co-op",
-    "description": "Play Little Alchemy classic together: every discovery syncs live between friends, peer-to-peer. Unofficial fan project.",
+    "description": "Play Little Alchemy classic together: every discovery syncs live between friends, peer-to-peer.",
     "icons": {
         "16": "icons/icon16.png",
         "32": "icons/icon32.png",
